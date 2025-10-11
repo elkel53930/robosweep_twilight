@@ -5119,7 +5119,7 @@
 		(uuid "ffa1c2ef-0570-4702-8dd8-64afd84bcb27")
 	)
 	(label "USB-"
-		(at 90.17 237.49 0)
+		(at 90.17 234.95 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -5189,7 +5189,7 @@
 		(uuid "49b83da2-7244-4f1c-aa0c-2edd6ab46ce6")
 	)
 	(label "USB+"
-		(at 90.17 234.95 0)
+		(at 90.17 237.49 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -6600,7 +6600,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Connector_JST:JST_XH_B3B-XH-AM_1x03_P2.50mm_Vertical"
+		(property "Footprint" "Connector_JST:JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical"
 			(at 74.93 237.49 0)
 			(effects
 				(font
@@ -6804,7 +6804,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Connector_JST:JST_XH_B5B-XH-AM_1x05_P2.50mm_Vertical"
+		(property "Footprint" "Connector_JST:JST_XH_B5B-XH-A_1x05_P2.50mm_Vertical"
 			(at 248.92 223.52 0)
 			(effects
 				(font
@@ -8016,7 +8016,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Connector_JST:JST_XH_B5B-XH-AM_1x05_P2.50mm_Vertical"
+		(property "Footprint" "Connector_JST:JST_XH_B5B-XH-A_1x05_P2.50mm_Vertical"
 			(at 280.67 224.79 0)
 			(effects
 				(font
@@ -9534,7 +9534,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Connector_JST:JST_XH_B5B-XH-AM_1x05_P2.50mm_Vertical"
+		(property "Footprint" "Connector_JST:JST_XH_B5B-XH-A_1x05_P2.50mm_Vertical"
 			(at 248.92 254 0)
 			(effects
 				(font
