@@ -1,4 +1,4 @@
-(footprint "ST-1KL3A"
+(footprint "ST-1KL3A_Mirror"
 	(version 20241229)
 	(generator "pcbnew")
 	(generator_version "9.0")
@@ -15,7 +15,7 @@
 			)
 		)
 	)
-	(property "Value" "ST-1KL3A"
+	(property "Value" "ST-1KL3A_Mirror"
 		(at 0 -2 0)
 		(unlocked yes)
 		(layer "F.Fab")
@@ -85,7 +85,7 @@
 		(layer "F.SilkS")
 		(uuid "132900dd-342f-4b0f-ad25-9585b63f5205")
 	)
-	(fp_text user "C"
+	(fp_text user "E"
 		(at -1.27 -1 0)
 		(unlocked yes)
 		(layer "F.SilkS")
@@ -97,7 +97,7 @@
 			)
 		)
 	)
-	(fp_text user "E"
+	(fp_text user "C"
 		(at 1.27 -1 0)
 		(unlocked yes)
 		(layer "F.SilkS")
@@ -122,20 +122,20 @@
 		)
 	)
 	(pad "1" thru_hole circle
-		(at -1.27 -3)
-		(size 2 2)
-		(drill 1)
-		(layers "*.Cu" "*.Mask")
-		(remove_unused_layers no)
-		(uuid "77794388-ce9c-4e91-a4e3-61efded5875a")
-	)
-	(pad "2" thru_hole circle
 		(at 1.27 -3)
 		(size 2 2)
 		(drill 1)
 		(layers "*.Cu" "*.Mask")
 		(remove_unused_layers no)
 		(uuid "70fc8457-e595-4cac-9b5a-8ee539c2a746")
+	)
+	(pad "2" thru_hole circle
+		(at -1.27 -3)
+		(size 2 2)
+		(drill 1)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "77794388-ce9c-4e91-a4e3-61efded5875a")
 	)
 	(embedded_fonts no)
 )
