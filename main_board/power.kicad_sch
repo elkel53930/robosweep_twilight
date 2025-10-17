@@ -5953,14 +5953,13 @@
 				(justify right)
 			)
 		)
-		(property "Value" "CL31A106KBHNNNE"
-			(at 280.67 86.3535 0)
+		(property "Value" "10uF 50V 3216"
+			(at 262.128 87.63 0)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
 				(justify right)
-				(hide yes)
 			)
 		)
 		(property "Footprint" "Capacitor_SMD:C_1206_3216Metric"
@@ -5987,6 +5986,7 @@
 				(font
 					(size 1.27 1.27)
 				)
+				(hide yes)
 			)
 		)
 		(property "Field5" ""
@@ -8322,14 +8322,13 @@
 				(justify right)
 			)
 		)
-		(property "Value" "CL31A226KAHNNNE"
-			(at 149.86 49.5235 0)
+		(property "Value" "22uF 25V 3216"
+			(at 131.572 50.546 0)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
 				(justify right)
-				(hide yes)
 			)
 		)
 		(property "Footprint" "Capacitor_SMD:C_1206_3216Metric"
@@ -8356,6 +8355,7 @@
 				(font
 					(size 1.27 1.27)
 				)
+				(hide yes)
 			)
 		)
 		(property "Field5" ""
@@ -8815,14 +8815,13 @@
 				(justify right)
 			)
 		)
-		(property "Value" "CL31A106KBHNNNE"
-			(at 208.28 49.5235 0)
+		(property "Value" "10uF 50V 3216"
+			(at 226.568 50.292 0)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
 				(justify right)
-				(hide yes)
 			)
 		)
 		(property "Footprint" "Capacitor_SMD:C_1206_3216Metric"
@@ -8849,6 +8848,7 @@
 				(font
 					(size 1.27 1.27)
 				)
+				(hide yes)
 			)
 		)
 		(property "Field5" ""
