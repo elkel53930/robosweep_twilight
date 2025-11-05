@@ -1349,6 +1349,130 @@
 			)
 			(embedded_fonts no)
 		)
+		(symbol "Device:R"
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 0)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "R"
+				(at 2.032 0 90)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "R"
+				(at 0 0 90)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at -1.778 0 90)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" "~"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Resistor"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_keywords" "R res resistor"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_fp_filters" "R_*"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "R_0_1"
+				(rectangle
+					(start -1.016 -2.54)
+					(end 1.016 2.54)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "R_1_1"
+				(pin passive line
+					(at 0 3.81 270)
+					(length 1.27)
+					(name "~"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 0 -3.81 90)
+					(length 1.27)
+					(name "~"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
 		(symbol "Device:R_Small"
 			(pin_numbers
 				(hide yes)
@@ -5511,14 +5635,13 @@
 				(justify left)
 			)
 		)
-		(property "Value" "0603WAF1001T5E"
+		(property "Value" "10 1608"
 			(at 195.58 57.1499 0)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
 				(justify left)
-				(hide yes)
 			)
 		)
 		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
@@ -5545,6 +5668,7 @@
 				(font
 					(size 1.27 1.27)
 				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -5930,6 +6054,75 @@
 			(project "main_board"
 				(path "/d2cf6a41-8170-4aa9-b19e-2c9825cc9c77/829ce076-7c19-4bad-87be-13e3998cb698"
 					(reference "#PWR072")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R")
+		(at 176.53 81.28 270)
+		(mirror x)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "1bdf3a01-d34d-459a-b24d-7b621b886b7c")
+		(property "Reference" "R22"
+			(at 175.26 83.82 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "1608 1k"
+			(at 172.72 78.74 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
+			(at 176.53 83.058 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 176.53 81.28 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 176.53 81.28 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "830172cf-5ea9-403f-a196-d724ad74587a")
+		)
+		(pin "2"
+			(uuid "dd3145f8-5702-4a95-a7c1-95fa8c5d1079")
+		)
+		(instances
+			(project "main_board"
+				(path "/d2cf6a41-8170-4aa9-b19e-2c9825cc9c77/829ce076-7c19-4bad-87be-13e3998cb698"
+					(reference "R22")
 					(unit 1)
 				)
 			)
@@ -7304,8 +7497,8 @@
 				(justify left)
 			)
 		)
-		(property "Value" "1608 0.1u"
-			(at 266.7 143.51 90)
+		(property "Value" "1608 50V 0.1uF"
+			(at 271.526 141.224 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -7373,8 +7566,8 @@
 				(justify left)
 			)
 		)
-		(property "Value" "0.1u 1608"
-			(at 156.21 166.624 90)
+		(property "Value" "1608 50V 0.1uF"
+			(at 156.464 172.466 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -7441,8 +7634,8 @@
 				(justify left)
 			)
 		)
-		(property "Value" "1608 0.1u"
-			(at 266.7 168.91 90)
+		(property "Value" "1608 50V 0.1uF"
+			(at 271.272 166.878 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -7643,7 +7836,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "0.1u 1608"
+		(property "Value" "1608 50V 0.1uF"
 			(at 200.66 121.285 0)
 			(effects
 				(font
@@ -8537,7 +8730,6 @@
 				(font
 					(size 1.27 1.27)
 				)
-				(hide yes)
 			)
 		)
 		(property "Footprint" "Package_TO_SOT_SMD:SOT-23-5"
@@ -8959,14 +9151,13 @@
 				(justify left)
 			)
 		)
-		(property "Value" "0603WAF1001T5E"
+		(property "Value" "330 1608"
 			(at 195.58 50.7999 0)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
 				(justify left)
-				(hide yes)
 			)
 		)
 		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
@@ -8987,12 +9178,13 @@
 				(hide yes)
 			)
 		)
-		(property "Description" "330 1608"
+		(property "Description" ""
 			(at 192.278 50.546 0)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -9082,7 +9274,6 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(fields_autoplaced yes)
 		(uuid "d2c1acc3-319c-4d93-8eec-9b31fb86b9af")
 		(property "Reference" "C34"
 			(at 165.1 240.0362 0)
@@ -9093,8 +9284,8 @@
 				(justify left)
 			)
 		)
-		(property "Value" "10uF"
-			(at 165.1 242.5762 0)
+		(property "Value" "10uF 2012"
+			(at 165.862 251.968 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -9626,7 +9817,6 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(fields_autoplaced yes)
 		(uuid "ef1e649f-cf4a-437e-8b8f-c12d90227f52")
 		(property "Reference" "C35"
 			(at 175.26 240.0362 0)
@@ -9637,8 +9827,8 @@
 				(justify left)
 			)
 		)
-		(property "Value" "10uF"
-			(at 175.26 242.5762 0)
+		(property "Value" "10uF 2012"
+			(at 176.53 252.222 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -9873,14 +10063,13 @@
 				(justify left)
 			)
 		)
-		(property "Value" "0603WAF1001T5E"
+		(property "Value" "1k 1608"
 			(at 195.58 44.4499 0)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
 				(justify left)
-				(hide yes)
 			)
 		)
 		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
@@ -9907,6 +10096,7 @@
 				(font
 					(size 1.27 1.27)
 				)
+				(hide yes)
 			)
 		)
 		(pin "1"

@@ -15459,7 +15459,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "MainSide"
+		(property "Value" "B6B-ZR"
 			(at 325.374 213.36 0)
 			(effects
 				(font
@@ -18794,7 +18794,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "MainSide"
+		(property "Value" "B6B-ZR"
 			(at 325.628 173.99 0)
 			(effects
 				(font
