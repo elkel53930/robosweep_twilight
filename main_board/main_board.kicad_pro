@@ -730,7 +730,7 @@
           "group_by": false,
           "label": "説明",
           "name": "Description",
-          "show": false
+          "show": true
         },
         {
           "group_by": false,
