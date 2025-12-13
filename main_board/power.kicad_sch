@@ -4785,16 +4785,6 @@
 	)
 	(wire
 		(pts
-			(xy 367.03 127) (xy 367.03 125.73)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "119441d7-0251-47db-bbf1-6be4eeef4690")
-	)
-	(wire
-		(pts
 			(xy 27.94 93.98) (xy 86.36 93.98)
 		)
 		(stroke
@@ -4952,16 +4942,6 @@
 			(type default)
 		)
 		(uuid "2424450d-ccf6-48e0-b64c-708143ea7384")
-	)
-	(wire
-		(pts
-			(xy 367.03 121.92) (xy 367.03 123.19)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "2729dd39-9fb2-44f2-a856-f7bb1a797c5c")
 	)
 	(wire
 		(pts
@@ -5675,16 +5655,6 @@
 	)
 	(wire
 		(pts
-			(xy 367.03 125.73) (xy 368.3 125.73)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "a0e427ac-1222-4620-818a-6ededbe4bdb9")
-	)
-	(wire
-		(pts
 			(xy 133.35 102.87) (xy 135.89 102.87)
 		)
 		(stroke
@@ -6282,16 +6252,6 @@
 			(type default)
 		)
 		(uuid "e8cb0ca1-2ace-4dfc-8b37-c48014e63eea")
-	)
-	(wire
-		(pts
-			(xy 367.03 123.19) (xy 368.3 123.19)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "e8d43121-22dc-4f1f-9eed-d0ff319fa2e3")
 	)
 	(wire
 		(pts
@@ -6972,7 +6932,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical"
+		(property "Footprint" "Connector_JST:JST_XH_B2B-XH-AM_1x02_P2.50mm_Vertical"
 			(at 373.38 102.87 0)
 			(effects
 				(font
@@ -8127,7 +8087,7 @@
 				(hide yes)
 			)
 		)
-		(property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical"
+		(property "Footprint" "Connector_JST:JST_XH_B2B-XH-AM_1x02_P2.50mm_Vertical"
 			(at 378.46 63.5 0)
 			(effects
 				(font
@@ -8173,72 +8133,6 @@
 			(project "main_board"
 				(path "/d2cf6a41-8170-4aa9-b19e-2c9825cc9c77/829ce076-7c19-4bad-87be-13e3998cb698"
 					(reference "J10")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "power:GND")
-		(at 367.03 127 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "3cb2db48-cbeb-451b-8b5b-ff03b8a13385")
-		(property "Reference" "#PWR089"
-			(at 367.03 133.35 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "GND"
-			(at 367.03 132.08 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" ""
-			(at 367.03 127 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 367.03 127 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 367.03 127 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "b1f3be8e-8c4d-4556-8056-d9fadbf2aa2a")
-		)
-		(instances
-			(project "main_board"
-				(path "/d2cf6a41-8170-4aa9-b19e-2c9825cc9c77/829ce076-7c19-4bad-87be-13e3998cb698"
-					(reference "#PWR089")
 					(unit 1)
 				)
 			)
@@ -8982,82 +8876,6 @@
 			(project "main_board"
 				(path "/d2cf6a41-8170-4aa9-b19e-2c9825cc9c77/829ce076-7c19-4bad-87be-13e3998cb698"
 					(reference "#PWR097")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Connector_Generic:Conn_01x02")
-		(at 373.38 123.19 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "59c5fa47-c16e-439a-b8c3-c639675eac39")
-		(property "Reference" "J13"
-			(at 376.428 126.238 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "B2B-XH-A(LF)(SN)"
-			(at 384.556 123.698 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical"
-			(at 373.38 123.19 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 373.38 123.19 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Generic connector, single row, 01x02, script generated (kicad-library-utils/schlib/autogen/connector/)"
-			(at 373.38 123.19 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "フィールド4" ""
-			(at 373.38 123.19 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "f08173a9-4b3c-4455-b2e5-16676d15393c")
-		)
-		(pin "2"
-			(uuid "ac28d735-bbd1-4d53-8b08-0af31e723d0c")
-		)
-		(instances
-			(project "main_board"
-				(path "/d2cf6a41-8170-4aa9-b19e-2c9825cc9c77/829ce076-7c19-4bad-87be-13e3998cb698"
-					(reference "J13")
 					(unit 1)
 				)
 			)
@@ -10511,72 +10329,6 @@
 			(project ""
 				(path "/d2cf6a41-8170-4aa9-b19e-2c9825cc9c77/829ce076-7c19-4bad-87be-13e3998cb698"
 					(reference "J9")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "power:+BATT")
-		(at 367.03 121.92 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "a059be8d-f685-4c6c-a52e-a9b63bc7ed70")
-		(property "Reference" "#PWR088"
-			(at 367.03 125.73 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "+BATT"
-			(at 367.03 116.84 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" ""
-			(at 367.03 121.92 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 367.03 121.92 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"+BATT\""
-			(at 367.03 121.92 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "08f3987e-1d88-421a-84b7-a5996b0094bf")
-		)
-		(instances
-			(project "main_board"
-				(path "/d2cf6a41-8170-4aa9-b19e-2c9825cc9c77/829ce076-7c19-4bad-87be-13e3998cb698"
-					(reference "#PWR088")
 					(unit 1)
 				)
 			)
@@ -12625,7 +12377,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical"
+		(property "Footprint" "Connector_JST:JST_XH_B2B-XH-AM_1x02_P2.50mm_Vertical"
 			(at 339.09 102.87 0)
 			(effects
 				(font
