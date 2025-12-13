@@ -586,7 +586,7 @@
 		(descr "tactile push button, 6x3.5mm, https://www.apem.com/idec-apem/en_US/PCB-switches/Tactile-Switches/MJTP-6mm-through-hole/c/MJTP_6mm_through%20hole?page=1")
 		(tags "PHAP3362 6mm tact sw THT")
 		(property "Reference" "SW2"
-			(at 3.42 -2.7 0)
+			(at 3.25 0 0)
 			(layer "F.SilkS")
 			(uuid "fef8f500-2fda-4399-b8ef-2280b90eb2eb")
 			(effects
@@ -870,7 +870,7 @@
 			(uuid "69e0fba3-309e-46e3-9d2a-cb180dfab832")
 		)
 		(fp_text user "${REFERENCE}"
-			(at 3 0 0)
+			(at 3 0 180)
 			(layer "F.Fab")
 			(uuid "24f13f1c-6cb1-44a1-b899-ef164384d9f9")
 			(effects
@@ -922,7 +922,7 @@
 		(descr "tactile push button, 6x3.5mm, https://www.apem.com/idec-apem/en_US/PCB-switches/Tactile-Switches/MJTP-6mm-through-hole/c/MJTP_6mm_through%20hole?page=1")
 		(tags "PHAP3362 6mm tact sw THT")
 		(property "Reference" "SW4"
-			(at 3.42 -2.7 90)
+			(at 3.25 0 90)
 			(layer "F.SilkS")
 			(uuid "1f833578-f28f-4b0e-9f34-e4eec1c40b46")
 			(effects
@@ -1256,7 +1256,7 @@
 		(uuid "44a904c7-bba3-4b34-8861-29bff81b919c")
 		(at 219 42 60)
 		(property "Reference" "D2"
-			(at 0 -0.5 60)
+			(at -0.084936 -5.147114 60)
 			(unlocked yes)
 			(layer "F.SilkS")
 			(uuid "02c5573d-519c-4554-95f9-33ba5c56544c")
@@ -1728,7 +1728,7 @@
 		(descr "tactile push button, 6x3.5mm, https://www.apem.com/idec-apem/en_US/PCB-switches/Tactile-Switches/MJTP-6mm-through-hole/c/MJTP_6mm_through%20hole?page=1")
 		(tags "PHAP3362 6mm tact sw THT")
 		(property "Reference" "SW3"
-			(at 3.42 -2.7 90)
+			(at 3.25 0 90)
 			(layer "F.SilkS")
 			(uuid "6c441c8e-6a7b-4ac3-a443-8f6f42ece4fc")
 			(effects
@@ -2062,7 +2062,7 @@
 		(uuid "8b71821f-59c9-4fb8-99f0-df22f7a0ab13")
 		(at 185 66 10)
 		(property "Reference" "D1"
-			(at 0 -0.5 10)
+			(at -0.203391 -4.605283 10)
 			(unlocked yes)
 			(layer "F.SilkS")
 			(uuid "b1f3065a-cc20-4c0a-b81e-268ad96aa1ca")
@@ -2318,7 +2318,7 @@
 		(uuid "b18350ad-57dc-4247-8cd6-702171975e89")
 		(at 225 42 -60)
 		(property "Reference" "D3"
-			(at 0 -0.5 300)
+			(at 0.084936 -5.147114 300)
 			(unlocked yes)
 			(layer "F.SilkS")
 			(uuid "ae804d9f-3fbd-41fe-a369-51d5701f49e1")
@@ -2844,7 +2844,7 @@
 		(descr "tactile push button, 6x3.5mm, https://www.apem.com/idec-apem/en_US/PCB-switches/Tactile-Switches/MJTP-6mm-through-hole/c/MJTP_6mm_through%20hole?page=1")
 		(tags "PHAP3362 6mm tact sw THT")
 		(property "Reference" "SW1"
-			(at 3.42 -2.7 0)
+			(at 3.25 0 0)
 			(layer "F.SilkS")
 			(uuid "0d76fa89-32e8-42cd-af89-763517533fce")
 			(effects
@@ -3178,7 +3178,7 @@
 		(uuid "e89bf474-7191-4a72-8805-fbb68af74a1c")
 		(at 259 66 -10)
 		(property "Reference" "D4"
-			(at 0 -0.5 350)
+			(at 0.203391 -4.605283 350)
 			(unlocked yes)
 			(layer "F.SilkS")
 			(uuid "75aaab57-9ec4-45e5-aec5-44248f17e774")
@@ -3341,7 +3341,7 @@
 		(uuid "47909eb4-e05c-43c6-a1c9-2d9602198a8b")
 		(at 259 66.405 170)
 		(property "Reference" "Q4"
-			(at 0 3.5 350)
+			(at 3.632519 3.32473 350)
 			(unlocked yes)
 			(layer "B.SilkS")
 			(uuid "0242ee5b-1d7e-4d80-b7c7-6891406c8fcd")
@@ -3430,7 +3430,7 @@
 			(uuid "73f77bba-2f26-4251-94f0-31de55156372")
 		)
 		(fp_text user "C"
-			(at 1.27 1 350)
+			(at 0.938568 5.322886 350)
 			(unlocked yes)
 			(layer "B.SilkS")
 			(uuid "26e6219b-4183-41c5-ae93-9410c15eaa5c")
@@ -3443,7 +3443,7 @@
 			)
 		)
 		(fp_text user "E"
-			(at -1.27 1 350)
+			(at -1.610275 5.264602 350)
 			(unlocked yes)
 			(layer "B.SilkS")
 			(uuid "2b384e59-e9b4-43b2-b503-897732246a54")
@@ -3497,10 +3497,10 @@
 		(uuid "733eb917-6ccd-48d0-ae63-b326cb584b52")
 		(at 185 66.405 -170)
 		(property "Reference" "Q1"
-			(at 0 3.5 10)
+			(at -3.632519 3.32473 10)
 			(unlocked yes)
 			(layer "B.SilkS")
-			(uuid "74b2a2a5-6cd8-4100-8575-2d530c89305c")
+			(uuid "a47d16d1-8869-4086-ad16-b3ac328c139f")
 			(effects
 				(font
 					(size 1 1)
@@ -3513,7 +3513,7 @@
 			(at 0 2 10)
 			(unlocked yes)
 			(layer "B.Fab")
-			(uuid "606f89c2-d07e-4416-90d7-407810e26d3f")
+			(uuid "e697396f-28e9-4b2b-a0a0-34ff9ab174e3")
 			(effects
 				(font
 					(size 1 1)
@@ -3527,7 +3527,7 @@
 			(unlocked yes)
 			(layer "B.Fab")
 			(hide yes)
-			(uuid "23b12a8f-a43f-40d1-a0dc-a8a93a0e84f0")
+			(uuid "7fb0c8fb-ba59-43c4-882b-46108f3d606a")
 			(effects
 				(font
 					(size 1 1)
@@ -3541,7 +3541,7 @@
 			(unlocked yes)
 			(layer "B.Fab")
 			(hide yes)
-			(uuid "61ed4a32-1e39-4c99-a5da-81b28fc0d056")
+			(uuid "316f3f3f-303b-4720-a30d-0442f420d2d8")
 			(effects
 				(font
 					(size 1 1)
@@ -3586,7 +3586,7 @@
 			(uuid "4efd5792-1726-48e5-9a7c-0bd2733797c3")
 		)
 		(fp_text user "E"
-			(at 1.27 1 10)
+			(at 1.117871 5.177778 10)
 			(unlocked yes)
 			(layer "B.SilkS")
 			(uuid "64961244-9e17-4925-ba37-9f0a5a4ee361")
@@ -3599,7 +3599,7 @@
 			)
 		)
 		(fp_text user "C"
-			(at -1.27 1 10)
+			(at -0.938568 5.322886 10)
 			(unlocked yes)
 			(layer "B.SilkS")
 			(uuid "f55d267b-2dd5-4440-ab8e-c2e76b9b3a83")
@@ -3653,7 +3653,7 @@
 		(uuid "7b160b07-774a-4f3c-8316-2397a8af6734")
 		(at 218.835608 42.105074 -120)
 		(property "Reference" "Q2"
-			(at 0 3.5 60)
+			(at 3.375845 3.057284 60)
 			(unlocked yes)
 			(layer "B.SilkS")
 			(uuid "13bba3be-46aa-4075-a893-e7de88028a22")
@@ -3742,7 +3742,7 @@
 			(uuid "a5a802df-4bfd-4e45-9889-58072a58aa81")
 		)
 		(fp_text user "C"
-			(at -1.27 1 60)
+			(at -1.204282 5.124271 60)
 			(unlocked yes)
 			(layer "B.SilkS")
 			(uuid "4721d006-3f0c-4fa2-ba35-e6793f5565c0")
@@ -3755,7 +3755,7 @@
 			)
 		)
 		(fp_text user "E"
-			(at 1.27 1 60)
+			(at 1.027769 4.990296 60)
 			(unlocked yes)
 			(layer "B.SilkS")
 			(uuid "9104ecaa-2528-4e05-b42c-05c39cf8b0db")
@@ -3809,7 +3809,7 @@
 		(uuid "8d542216-8228-4ec9-bbf5-c99fbe529726")
 		(at 225.164392 42.105074 120)
 		(property "Reference" "Q3"
-			(at 0 3.5 300)
+			(at -3.375845 3.057284 300)
 			(unlocked yes)
 			(layer "B.SilkS")
 			(uuid "fe59033a-da06-467b-92a0-fb0ea3455e5d")
@@ -3898,7 +3898,7 @@
 			(uuid "42639e25-0d58-4df8-a574-446da132254a")
 		)
 		(fp_text user "E"
-			(at -1.27 1 300)
+			(at -1.027769 4.990296 300)
 			(unlocked yes)
 			(layer "B.SilkS")
 			(uuid "8cb0a78d-4e45-4be1-8724-405c13f4fd6f")
@@ -3911,7 +3911,7 @@
 			)
 		)
 		(fp_text user "C"
-			(at 1.27 1 300)
+			(at 1.204282 5.124271 300)
 			(unlocked yes)
 			(layer "B.SilkS")
 			(uuid "eaee391a-59f1-429f-b98f-ebe169cdcf72")
@@ -4667,6 +4667,16 @@
 		(uuid "1fd8e3c9-f0f3-4553-9b4a-5785394b2a78")
 	)
 	(gr_line
+		(start 255 70)
+		(end 264 70)
+		(stroke
+			(width 0.1)
+			(type default)
+		)
+		(layer "F.SilkS")
+		(uuid "2e820267-d63a-4f08-9354-fef2fc087795")
+	)
+	(gr_line
 		(start 221.3 73.6)
 		(end 221.3 104.4)
 		(stroke
@@ -4725,6 +4735,16 @@
 		)
 		(layer "F.SilkS")
 		(uuid "a72180f1-0efc-41b7-92c9-aa91c696d572")
+	)
+	(gr_line
+		(start 264 73)
+		(end 255 73)
+		(stroke
+			(width 0.1)
+			(type default)
+		)
+		(layer "F.SilkS")
+		(uuid "bd490cd9-14f5-42ad-a28b-3bd39659716b")
 	)
 	(gr_curve
 		(pts
@@ -5836,8 +5856,8 @@
 		(uuid "36501739-c839-4728-b53a-8fc060d1b048")
 	)
 	(gr_line
-		(start 259 73)
-		(end 259 70)
+		(start 255 73)
+		(end 255 70)
 		(stroke
 			(width 0.05)
 			(type default)
@@ -5878,7 +5898,7 @@
 	)
 	(gr_line
 		(start 208 73)
-		(end 259 73)
+		(end 255 73)
 		(stroke
 			(width 0.05)
 			(type default)
@@ -5948,7 +5968,7 @@
 		(uuid "d77a3513-202b-477f-8d58-9b20909bc952")
 	)
 	(gr_line
-		(start 259 70)
+		(start 255 70)
 		(end 241 70)
 		(stroke
 			(width 0.05)
@@ -7943,9 +7963,9 @@
 				(xy 227.880843 75.02) (xy 228.439999 75.02) (xy 228.44 75.019999) (xy 228.44 75.016532) (xy 228.8795 75.016532)
 				(xy 228.8795 75.223467) (xy 228.919869 75.426418) (xy 228.999058 75.617597) (xy 229.111997 75.786623)
 				(xy 229.114023 75.789655) (xy 229.260345 75.935977) (xy 229.432402 76.050941) (xy 229.468384 76.065845)
-				(xy 229.51491 76.10558) (xy 229.5295 76.157309) (xy 229.5295 76.982727) (xy 229.556793 77.084587)
-				(xy 229.556794 77.084589) (xy 229.556794 77.08459) (xy 229.609518 77.17591) (xy 229.60952 77.175913)
-				(xy 229.684087 77.25048) (xy 229.775413 77.303207) (xy 229.877273 77.3305) (xy 229.982727 77.3305)
+				(xy 229.51491 76.10558) (xy 229.5295 76.157309) (xy 229.5295 76.877273) (xy 229.5295 76.982727)
+				(xy 229.556793 77.084587) (xy 229.556794 77.084589) (xy 229.556794 77.08459) (xy 229.609518 77.17591)
+				(xy 229.60952 77.175913) (xy 229.684087 77.25048) (xy 229.775413 77.303207) (xy 229.877273 77.3305)
 				(xy 242.723099 77.3305) (xy 242.78129 77.349407) (xy 242.793103 77.359496) (xy 255.674087 90.24048)
 				(xy 255.674089 90.240481) (xy 255.67409 90.240482) (xy 255.674091 90.240483) (xy 255.765408 90.293205)
 				(xy 255.765406 90.293205) (xy 255.76541 90.293206) (xy 255.765412 90.293207) (xy 255.867273 90.3205)
@@ -8005,7 +8025,7 @@
 				(xy 242.32358 76.13013) (xy 242.526535 76.1705) (xy 242.526536 76.1705) (xy 242.733464 76.1705)
 				(xy 242.733465 76.1705) (xy 242.93642 76.13013) (xy 243.097403 76.063447) (xy 243.1584 76.058647)
 				(xy 243.205292 76.084907) (xy 255.353942 88.233558) (xy 255.353943 88.233558) (xy 255.353944 88.233559)
-				(xy 255.455198 88.2755) (xy 255.4552 88.2755) (xy 261.768877 88.2755) (xy 261.827068 88.294407)
+				(xy 255.455198 88.2755) (xy 255.4552 88.2755) (xy 255.5648 88.2755) (xy 261.768877 88.2755) (xy 261.827068 88.294407)
 				(xy 261.838881 88.304496) (xy 262.695504 89.161119) (xy 262.723281 89.215636) (xy 262.7245 89.231123)
 				(xy 262.7245 115.434875) (xy 262.705593 115.493066) (xy 262.695504 115.504879) (xy 261.305291 116.895091)
 				(xy 261.250774 116.922868) (xy 261.197401 116.916551) (xy 261.036418 116.849869) (xy 260.833467 116.8095)
