@@ -18,12 +18,21 @@ Arduino Nanoを使用したロボットアーム制御システムです。シ�
 
 ### 制御コマンド（PC → Arduino）
 ```
-S1<angle>   # サーボ1角度設定 (例: S1090 = 90度)
-S2<angle>   # サーボ2角度設定 (例: S2180 = 180度)
-M<speed>    # モータ速度設定 (例: M050 = 50%)
-STATUS      # センサーデータ要求
-STOP        # 緊急停止
+S1<angle>       # サーボ1角度設定（即座に移動）(例: S1090 = 90度)
+S2<angle>       # サーボ2角度設定（即座に移動）(例: S2180 = 180度)
+S1A<angle>,<speed>  # サーボ1角度と速度設定 (例: S1A090,030 = 90度に30°/secで移動)
+S2A<angle>,<speed>  # サーボ2角度と速度設定 (例: S2A180,060 = 180度に60°/secで移動)
+S1S<speed>      # サーボ1デフォルト速度設定 (例: S1S045 = 45°/sec)
+S2S<speed>      # サーボ2デフォルト速度設定 (例: S2S090 = 90°/sec)
+M<speed>        # モータ速度設定 (例: M050 = 50%)
+STATUS          # センサーデータ要求
+STOP            # 緊急停止
 ```
+
+**速度指定について:**
+- 速度は1-180 degrees/secの範囲で指定
+- デフォルト速度は180°/sec（最高速度）
+- 速度制御は20ms間隔（50Hz）で更新
 
 ### 応答（Arduino → PC）
 ```
@@ -69,9 +78,17 @@ from arm_board_controller import ArmBoardController
 controller = ArmBoardController('/dev/ttyUSB0')
 
 if controller.connect():
-    # サーボ制御
+    # サーボ制御（即座に移動）
     controller.set_servo1_angle(90)   # サーボ1を90度に
     controller.set_servo2_angle(45)   # サーボ2を45度に
+    
+    # サーボ速度制御
+    controller.set_servo1_angle_with_speed(180, 30)  # 180度に30°/secで移動
+    controller.set_servo2_angle_with_speed(0, 60)    # 0度に60°/secで移動
+    
+    # デフォルト速度設定
+    controller.set_servo1_speed(45)   # サーボ1のデフォルト速度を45°/sec
+    controller.set_servo2_speed(90)   # サーボ2のデフォルト速度を90°/sec
     
     # モータ制御
     controller.set_motor_speed(30)    # モータを30%の速度で回転
@@ -118,6 +135,12 @@ controller.disconnect()
 ```bash
 python3 arm_board_test.py basic
 ```
+
+### サーボ速度制御テスト
+```bash
+python3 servo_speed_test.py
+```
+様々な速度でのサーボ制御をテストし、速度制御機能を検証します。
 
 ### リアルタイムプロットテスト
 ```bash

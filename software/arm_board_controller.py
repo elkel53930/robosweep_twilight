@@ -118,6 +118,7 @@ class ArmBoardController:
             with self.lock:
                 self.serial_conn.write((command + '\n').encode())
                 self.serial_conn.flush()
+                time.sleep(0.1)  # 送信間隔を100msに増加
             return True
         except Exception as e:
             print(f"Send command error: {e}")
@@ -180,7 +181,7 @@ class ArmBoardController:
     
     def set_servo1_angle(self, angle: int) -> bool:
         """
-        サーボ1の角度を設定
+        サーボ1の角度を設定（即座に移動）
         
         Args:
             angle: 角度 (0-180)
@@ -193,7 +194,7 @@ class ArmBoardController:
     
     def set_servo2_angle(self, angle: int) -> bool:
         """
-        サーボ2の角度を設定
+        サーボ2の角度を設定（即座に移動）
         
         Args:
             angle: 角度 (0-180)
@@ -203,6 +204,62 @@ class ArmBoardController:
         """
         angle = max(0, min(180, angle))  # 0-180に制限
         return self._send_command(f"S2{angle:03d}")
+    
+    def set_servo1_angle_with_speed(self, angle: int, speed: int) -> bool:
+        """
+        サーボ1の角度を指定速度で設定
+        
+        Args:
+            angle: 目標角度 (0-180)
+            speed: 移動速度 (1-180 degrees/sec)
+            
+        Returns:
+            送信成功の場合True
+        """
+        angle = max(0, min(180, angle))  # 0-180に制限
+        speed = max(1, min(180, speed))  # 1-180に制限
+        return self._send_command(f"S1A{angle:03d},{speed:03d}")
+    
+    def set_servo2_angle_with_speed(self, angle: int, speed: int) -> bool:
+        """
+        サーボ2の角度を指定速度で設定
+        
+        Args:
+            angle: 目標角度 (0-180)
+            speed: 移動速度 (1-180 degrees/sec)
+            
+        Returns:
+            送信成功の場合True
+        """
+        angle = max(0, min(180, angle))  # 0-180に制限
+        speed = max(1, min(180, speed))  # 1-180に制限
+        return self._send_command(f"S2A{angle:03d},{speed:03d}")
+    
+    def set_servo1_speed(self, speed: int) -> bool:
+        """
+        サーボ1のデフォルト速度を設定
+        
+        Args:
+            speed: デフォルト速度 (1-180 degrees/sec)
+            
+        Returns:
+            送信成功の場合True
+        """
+        speed = max(1, min(180, speed))  # 1-180に制限
+        return self._send_command(f"S1S{speed:03d}")
+    
+    def set_servo2_speed(self, speed: int) -> bool:
+        """
+        サーボ2のデフォルト速度を設定
+        
+        Args:
+            speed: デフォルト速度 (1-180 degrees/sec)
+            
+        Returns:
+            送信成功の場合True
+        """
+        speed = max(1, min(180, speed))  # 1-180に制限
+        return self._send_command(f"S2S{speed:03d}")
     
     def set_motor_speed(self, speed: int) -> bool:
         """

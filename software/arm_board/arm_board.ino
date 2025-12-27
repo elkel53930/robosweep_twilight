@@ -19,7 +19,7 @@
 #define MOTOR_PWM_PIN 3
 
 // Constants
-#define VOLTAGE_DIVIDER_RATIO 10.0  // 10:1 voltage divider
+#define VOLTAGE_DIVIDER_RATIO 11.0  // 10:1 voltage divider
 #define ADC_REFERENCE_VOLTAGE 5.0   // Arduino Nano reference voltage
 #define ADC_MAX_VALUE 1023.0        // 10-bit ADC
 
@@ -40,6 +40,16 @@ String inputString = "";
 bool stringComplete = false;
 unsigned long lastSensorSend = 0;
 const unsigned long SENSOR_SEND_INTERVAL = 100;  // 100ms
+
+// Servo control variables
+int servo1_current_angle = 90;
+int servo1_target_angle = 90;
+int servo1_speed = 180;  // degrees per second (default: max speed)
+int servo2_current_angle = 90;
+int servo2_target_angle = 90;
+int servo2_speed = 180;  // degrees per second (default: max speed)
+unsigned long lastServoUpdate = 0;
+const unsigned long SERVO_UPDATE_INTERVAL = 20;  // 20ms = 50Hz update rate
 
 void setup() {
   // Initialize serial communication
@@ -100,6 +110,12 @@ void loop() {
     stringComplete = false;
   }
   
+  // Update servo positions with speed control
+  if (millis() - lastServoUpdate >= SERVO_UPDATE_INTERVAL) {
+    updateServoPositions();
+    lastServoUpdate = millis();
+  }
+  
   // Read sensor values
   readBatteryVoltage();
   readCurrentSensor();
@@ -131,14 +147,53 @@ void serialEvent() {
 
 /**
  * Process incoming commands
- * Commands: S1<angle> S2<angle> M<speed>
- * Examples: S1090, S2180, M050
+ * Commands: S1<angle> S2<angle> M<speed> S1S<speed> S2S<speed> S1A<angle>,<speed> S2A<angle>,<speed>
+ * Examples: S1090, S2180, M050, S1S030, S2S060, S1A090,030, S2A045,060
  */
 void processCommand(String command) {
   command.trim();
   command.toUpperCase();
   
-  if (command.startsWith("S1")) {
+  // デバッグ用: 受信したコマンドを表示
+  Serial.println("DEBUG:Received command: '" + command + "'");
+  
+  if (command.startsWith("S1A")) {
+    // S1A<angle>,<speed> - Set servo1 angle with speed
+    int commaIndex = command.indexOf(',');
+    if (commaIndex > 0) {
+      int angle = command.substring(3, commaIndex).toInt();
+      int speed = command.substring(commaIndex + 1).toInt();
+      setServo1AngleWithSpeed(angle, speed);
+      Serial.println("OK:S1A:" + String(angle) + "," + String(speed));
+    } else {
+      Serial.println("ERROR:S1A_FORMAT");
+    }
+  }
+  else if (command.startsWith("S2A")) {
+    // S2A<angle>,<speed> - Set servo2 angle with speed
+    int commaIndex = command.indexOf(',');
+    if (commaIndex > 0) {
+      int angle = command.substring(3, commaIndex).toInt();
+      int speed = command.substring(commaIndex + 1).toInt();
+      setServo2AngleWithSpeed(angle, speed);
+      Serial.println("OK:S2A:" + String(angle) + "," + String(speed));
+    } else {
+      Serial.println("ERROR:S2A_FORMAT");
+    }
+  }
+  else if (command.startsWith("S1S")) {
+    // S1S<speed> - Set servo1 default speed
+    int speed = command.substring(3).toInt();
+    setServo1Speed(speed);
+    Serial.println("OK:S1S:" + String(speed));
+  }
+  else if (command.startsWith("S2S")) {
+    // S2S<speed> - Set servo2 default speed
+    int speed = command.substring(3).toInt();
+    setServo2Speed(speed);
+    Serial.println("OK:S2S:" + String(speed));
+  }
+  else if (command.startsWith("S1")) {
     int angle = command.substring(2).toInt();
     setServo1Angle(angle);
     Serial.println("OK:S1:" + String(angle));
@@ -230,21 +285,102 @@ void printSensorValues() {
 }
 
 /**
- * Control servo motor 1
+ * Update servo positions with speed control
+ */
+void updateServoPositions() {
+  // Update servo1 position
+  if (servo1_current_angle != servo1_target_angle) {
+    float step_size = (float)servo1_speed * SERVO_UPDATE_INTERVAL / 1000.0;  // degrees per update
+    
+    if (abs(servo1_target_angle - servo1_current_angle) <= step_size) {
+      servo1_current_angle = servo1_target_angle;
+    } else if (servo1_target_angle > servo1_current_angle) {
+      servo1_current_angle += step_size;
+    } else {
+      servo1_current_angle -= step_size;
+    }
+    
+    servo1.write(servo1_current_angle);
+  }
+  
+  // Update servo2 position
+  if (servo2_current_angle != servo2_target_angle) {
+    float step_size = (float)servo2_speed * SERVO_UPDATE_INTERVAL / 1000.0;  // degrees per update
+    
+    if (abs(servo2_target_angle - servo2_current_angle) <= step_size) {
+      servo2_current_angle = servo2_target_angle;
+    } else if (servo2_target_angle > servo2_current_angle) {
+      servo2_current_angle += step_size;
+    } else {
+      servo2_current_angle -= step_size;
+    }
+    
+    servo2.write(servo2_current_angle);
+  }
+}
+
+/**
+ * Control servo motor 1 (immediate)
  * @param angle: angle in degrees (0-180)
  */
 void setServo1Angle(int angle) {
   angle = constrain(angle, 0, 180);
+  servo1_current_angle = angle;
+  servo1_target_angle = angle;
   servo1.write(angle);
 }
 
 /**
- * Control servo motor 2
+ * Control servo motor 2 (immediate)
  * @param angle: angle in degrees (0-180)
  */
 void setServo2Angle(int angle) {
   angle = constrain(angle, 0, 180);
+  servo2_current_angle = angle;
+  servo2_target_angle = angle;
   servo2.write(angle);
+}
+
+/**
+ * Control servo motor 1 with speed
+ * @param angle: target angle in degrees (0-180)
+ * @param speed: speed in degrees per second (1-180)
+ */
+void setServo1AngleWithSpeed(int angle, int speed) {
+  angle = constrain(angle, 0, 180);
+  speed = constrain(speed, 1, 180);
+  servo1_target_angle = angle;
+  servo1_speed = speed;
+}
+
+/**
+ * Control servo motor 2 with speed
+ * @param angle: target angle in degrees (0-180)
+ * @param speed: speed in degrees per second (1-180)
+ */
+void setServo2AngleWithSpeed(int angle, int speed) {
+  angle = constrain(angle, 0, 180);
+  speed = constrain(speed, 1, 180);
+  servo2_target_angle = angle;
+  servo2_speed = speed;
+}
+
+/**
+ * Set servo1 default speed
+ * @param speed: speed in degrees per second (1-180)
+ */
+void setServo1Speed(int speed) {
+  speed = constrain(speed, 1, 180);
+  servo1_speed = speed;
+}
+
+/**
+ * Set servo2 default speed
+ * @param speed: speed in degrees per second (1-180)
+ */
+void setServo2Speed(int speed) {
+  speed = constrain(speed, 1, 180);
+  servo2_speed = speed;
 }
 
 /**
