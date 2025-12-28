@@ -22,6 +22,8 @@
 #define VOLTAGE_DIVIDER_RATIO 11.0  // 10:1 voltage divider
 #define ADC_REFERENCE_VOLTAGE 5.0   // Arduino Nano reference voltage
 #define ADC_MAX_VALUE 1023.0        // 10-bit ADC
+#define DEFAULT_SERVO1_ANGLE 80.0   // Default servo1 position in degrees
+#define DEFAULT_SERVO2_ANGLE 180.0  // Default servo2 position in degrees
 
 // Objects
 Servo servo1;
@@ -42,11 +44,11 @@ unsigned long lastSensorSend = 0;
 const unsigned long SENSOR_SEND_INTERVAL = 25;  // 25ms (40Hz)
 
 // Servo control variables
-float servo1_current_angle = 90.0;
-float servo1_target_angle = 90.0;
+float servo1_current_angle = DEFAULT_SERVO1_ANGLE;
+float servo1_target_angle = DEFAULT_SERVO1_ANGLE;
 int servo1_speed = 180;  // degrees per second (default: max speed)
-float servo2_current_angle = 90.0;
-float servo2_target_angle = 90.0;
+float servo2_current_angle = DEFAULT_SERVO2_ANGLE;
+float servo2_target_angle = DEFAULT_SERVO2_ANGLE;
 int servo2_speed = 180;  // degrees per second (default: max speed)
 unsigned long lastServoUpdate = 0;
 const unsigned long SERVO_UPDATE_INTERVAL = 5;  // 5ms = 200Hz update rate
@@ -60,9 +62,9 @@ void setup() {
   servo1.attach(SERVO1_PIN);
   servo2.attach(SERVO2_PIN);
   
-  // Set servos to neutral position (90 degrees)
-  servo1.write(90);
-  servo2.write(90);
+  // Set servos to default positions
+  servo1.write(DEFAULT_SERVO1_ANGLE);
+  servo2.write(DEFAULT_SERVO2_ANGLE);
   Serial.println("Servos initialized");
   
   // Initialize PWM motor pin
@@ -487,8 +489,8 @@ void scanI2CDevices() {
  * Emergency stop - stop all motors and servos
  */
 void emergencyStop() {
-  servo1.write(90);  // Neutral position
-  servo2.write(90);  // Neutral position
+  servo1.write(DEFAULT_SERVO1_ANGLE);  // Default position
+  servo2.write(DEFAULT_SERVO2_ANGLE);  // Default position
   analogWrite(MOTOR_PWM_PIN, 0);  // Stop motor
   Serial.println("EMERGENCY STOP ACTIVATED");
 }
