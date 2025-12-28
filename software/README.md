@@ -1,18 +1,21 @@
 # Arduino Nano Arm Board Controller
 
-Arduino Nanoを使用したロボットアーム制御システムです。シリアル通信でサーボモータとDCモータを制御し、センサーデータを取得できます。
+Arduino Nanoを使用したロボットアーム制御システムです。シリアル通信でサーボモータとDCモータを制御し、INA219センサーによるリアルタイム電流監視とmatplotlibによるグラフ表示機能を提供します。
 
 ## システム構成
 
 ### Arduino側（arm_board.ino）
-- **D8, D9**: PWMサーボモータ
+- **D8, D9**: PWMサーボモータ（個別デフォルト角度: Servo1=80°, Servo2=180°）
 - **A4, A5**: I2C電流センサ（INA219）
 - **A1**: バッテリー電圧監視（10:1分圧回路）
 - **D3**: NチャンネルMOSFET経由PWMモータ制御（2kHz）
+- **センサーデータ送信**: 25ms間隔（40Hz）
 
 ### PC側（Python）
 - `arm_board_controller.py`: メイン制御クラス
-- `arm_board_test.py`: テスト用スクリプト
+- `test.py`: インタラクティブ制御とファイル実行機能
+- `throw_test.py`: 複雑な自動シーケンス実行
+- `arm_board_test.py`: 基本機能テスト
 
 ## 通信プロトコル
 
@@ -32,13 +35,13 @@ STOP            # 緊急停止
 **速度指定について:**
 - 速度は1-180 degrees/secの範囲で指定
 - デフォルト速度は180°/sec（最高速度）
-- 速度制御は20ms間隔（50Hz）で更新
+- 速度制御は5ms間隔（200Hz）で更新
 
 ### 応答（Arduino → PC）
 ```
 OK:<command>:<value>                    # コマンド成功
 ERROR:<message>                         # エラー
-DATA:<battery>,<current>,<power>        # センサーデータ（100ms毎）
+DATA:<battery>,<current>,<power>        # センサーデータ（25ms毎、40Hz）
 DEBUG:<message>                         # デバッグメッセージ
 ```
 
@@ -113,7 +116,7 @@ with ArmBoardController('/dev/ttyUSB0') as controller:
     # 自動的に切断される
 ```
 
-### 3. リアルタイムデータ監視
+### 3. リアルタイムデータ監視とグラフ表示
 
 ```python
 def sensor_callback(data):
@@ -124,48 +127,113 @@ controller = ArmBoardController('/dev/ttyUSB0')
 controller.connect()
 controller.set_sensor_callback(sensor_callback)
 
-# データは100ms毎にコールバックで受信される
+# データは25ms毎にコールバックで受信される（40Hz）
 time.sleep(10)
 controller.disconnect()
 ```
 
+### 4. ファイル実行でのリアルタイムプロット
+
+ファイル実行モード時は自動的にmatplotlibグラフが表示されます：
+- 上段：電流の生データ（青線）
+- 下段：10ポイント移動平均（赤線）
+- 時間軸：HH:MM:SS形式
+- 自動スケーリング対応
+
+## 新機能
+
+### 1. 高速センサーデータ取得
+- センサーデータ送信間隔：25ms（40Hz）
+- サーボ制御更新間隔：5ms（200Hz）
+- より細かい制御とデータ取得が可能
+
+### 2. ファイル実行システム
+- テキストファイルからコマンド読み込み
+- ステップバイステップ実行
+- 自動ループ機能
+- コメント対応（#で始まる行）
+
+### 3. リアルタイムグラフ監視
+- matplotlib による電流値の可視化
+- 移動平均によるノイズ除去
+- 非ブロッキングプロット表示
+
+### 4. 複雑な自動化シーケンス
+- 電流値による条件判定
+- 移動平均による電流変化の監視
+- タイムアウト保護機能
+
 ## テストスクリプト
-
-### 基本制御テスト
-```bash
-python3 arm_board_test.py basic
-```
-
-### サーボ速度制御テスト
-```bash
-python3 servo_speed_test.py
-```
-様々な速度でのサーボ制御をテストし、速度制御機能を検証します。
-
-### リアルタイムプロットテスト
-```bash
-python3 arm_board_test.py plot
-```
 
 ### インタラクティブ制御
 ```bash
-python3 arm_board_test.py interactive
+python3 test.py
 ```
 
 インタラクティブモードでは以下のコマンドが使用できます：
-- `s1 90`: サーボ1を90度に設定
-- `s2 180`: サーボ2を180度に設定
+- `s1 90`: サーボ1を90度に設定（即座）
+- `s2 180`: サーボ2を180度に設定（即座）
+- `s1s 90 30`: サーボ1を90度に30°/secで移動
+- `s2s 180 60`: サーボ2を180度に60°/secで移動
 - `m 50`: モータを50%の速度に設定
 - `stop`: 緊急停止
-- `status`: ステータス要求
+- `status`: センサーデータ表示
+- `file <filename>`: テキストファイルからコマンド実行
+- `sample`: サンプルコマンドファイル作成
+- `help`: ヘルプ表示
 - `quit`: 終了
+
+### ファイル実行機能
+```bash
+# サンプルファイル作成
+>>> sample
+# ファイル実行（ステップバイステップ）
+>>> file sample_commands.txt
+```
+
+ファイル実行モードでは：
+- エンターキーで次のコマンドを実行
+- 最後まで実行すると自動的にループ
+- リアルタイム電流監視グラフ表示
+- `q`で終了
+
+### 自動化テストシーケンス
+```bash
+python3 throw_test.py
+```
+
+複雑な動作シーケンスを自動実行：
+- サーボの段階的制御
+- 電流監視と閾値判定
+- 移動平均による電流変化の検出
+- タイムアウト保護機能
+
+### 基本制御テスト
+```bash
+python3 arm_board_test.py
+```
 
 ## 安全機能
 
 - 角度制限: サーボ角度は0-180度に自動制限
-- 速度制限: モータ速度は0-100%に自動制限
+- 速度制限: モータ速度は0-100%に自動制限  
 - 緊急停止: `STOP`コマンドですべてのモータを停止
+- デフォルト位置復帰: 緊急停止時にServo1=80°、Servo2=180°に復帰
 - 接続監視: 通信エラー時の自動復旧
+- タイムアウト保護: 長時間処理での自動継続
+
+## ファイルフォーマット
+
+### コマンドファイル例（sample_commands.txt）
+```
+# Comment lines start with #
+s1 180          # Set servo1 to 180 degrees instantly  
+s2s 0 10        # Move servo2 to 0 degrees at 10°/sec
+s1 45           # Set servo1 to 45 degrees
+m 50            # Set motor to 50% speed
+m 0             # Stop motor
+stop            # Emergency stop
+```
 
 ## トラブルシューティング
 
