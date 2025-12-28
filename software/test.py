@@ -6,7 +6,137 @@ test.py - Interactive Arduino Servo Control with Script File Support
 import time
 import sys
 import os
+import threading
+from collections import deque
+from datetime import datetime
 from arm_board_controller import ArmBoardController
+
+try:
+    import matplotlib.pyplot as plt
+    import matplotlib.animation as animation
+    from matplotlib.dates import DateFormatter
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    print("Warning: matplotlib not installed. Real-time plotting disabled.")
+    print("Install with: pip install matplotlib")
+    MATPLOTLIB_AVAILABLE = False
+
+class RealTimePlotter:
+    """INA219電流値のリアルタイムプロッター"""
+    
+    def __init__(self, controller, max_points=300, moving_avg_window=10):
+        self.controller = controller
+        self.max_points = max_points
+        self.moving_avg_window = moving_avg_window
+        self.times = deque(maxlen=max_points)
+        self.currents = deque(maxlen=max_points)
+        self.current_averages = deque(maxlen=max_points)
+        self.is_running = False
+        self.fig = None
+        self.ax1 = None
+        self.ax2 = None
+        self.line_current = None
+        self.line_average = None
+        self.ani = None
+        
+    def start_plotting(self):
+        """グラフ表示を開始"""
+        if not MATPLOTLIB_AVAILABLE:
+            print("Matplotlib not available. Skipping real-time plot.")
+            return False
+            
+        self.is_running = True
+        
+        # フィギュアとサブプロットを作成
+        self.fig, (self.ax1, self.ax2) = plt.subplots(2, 1, figsize=(10, 8))
+        self.fig.suptitle('INA219 Current Monitoring', fontsize=14)
+        
+        # 電流グラフ（生データ）
+        self.ax1.set_title('Current - Raw Data (mA)')
+        self.ax1.set_ylabel('Current [mA]')
+        self.ax1.grid(True)
+        self.line_current, = self.ax1.plot([], [], 'b-', linewidth=1, alpha=0.7, label='Raw')
+        self.ax1.legend()
+        
+        # 電流グラフ（移動平均）
+        self.ax2.set_title(f'Current - {self.moving_avg_window}-Point Moving Average (mA)')
+        self.ax2.set_xlabel('Time')
+        self.ax2.set_ylabel('Current [mA]')
+        self.ax2.grid(True)
+        self.line_average, = self.ax2.plot([], [], 'r-', linewidth=2, label=f'{self.moving_avg_window}-Point Avg')
+        self.ax2.legend()
+        
+        # 時間軸フォーマット
+        time_formatter = DateFormatter('%H:%M:%S')
+        self.ax2.xaxis.set_major_formatter(time_formatter)
+        
+        plt.tight_layout()
+        
+        # アニメーション開始
+        self.ani = animation.FuncAnimation(
+            self.fig, self.update_plot, interval=100, blit=False
+        )
+        
+        # 非ブロッキングでプロット表示
+        plt.ion()
+        plt.show()
+        
+        return True
+    
+    def calculate_moving_average(self):
+        """電流値の移動平均を計算"""
+        if len(self.currents) < self.moving_avg_window:
+            return None
+        
+        # 最新のN個のデータの平均を計算
+        recent_currents = list(self.currents)[-self.moving_avg_window:]
+        return sum(recent_currents) / len(recent_currents)
+    
+    def update_plot(self, frame):
+        """プロットを更新"""
+        if not self.is_running:
+            return self.line_current, self.line_average
+            
+        # センサーデータを取得
+        data = self.controller.get_latest_sensor_data()
+        if data:
+            current_time = datetime.now()
+            self.times.append(current_time)
+            self.currents.append(data.current_mA)
+            
+            # 移動平均を計算
+            moving_avg = self.calculate_moving_average()
+            if moving_avg is not None:
+                self.current_averages.append(moving_avg)
+            
+            # グラフを更新
+            if len(self.times) > 1:
+                self.line_current.set_data(self.times, self.currents)
+                
+                # 移動平均グラフ（データ数が十分な場合のみ）
+                if len(self.current_averages) > 0:
+                    avg_times = list(self.times)[-len(self.current_averages):]
+                    self.line_average.set_data(avg_times, self.current_averages)
+                
+                # 軸の範囲を自動調整
+                self.ax1.relim()
+                self.ax1.autoscale_view()
+                self.ax2.relim()
+                self.ax2.autoscale_view()
+                
+                # 時間軸を回転
+                self.fig.autofmt_xdate()
+        
+        return self.line_current, self.line_average
+    
+    def stop_plotting(self):
+        """グラフ表示を停止"""
+        self.is_running = False
+        if self.ani:
+            self.ani.event_source.stop()
+        if self.fig:
+            plt.close(self.fig)
+            plt.ioff()
 
 def print_help():
 	"""ヘルプを表示"""
@@ -124,8 +254,7 @@ def execute_command(controller, command):
 		data = controller.get_latest_sensor_data()
 		if data:
 			print(f"Battery: {data.battery_voltage:.2f}V, "
-				  f"Current: {data.current_mA:.1f}mA, "
-				  f"Power: {data.power_mW:.1f}mW")
+				  f"Current: {data.current_mA:.1f}mA")
 		else:
 			print("No sensor data available")
 		return True
@@ -134,37 +263,64 @@ def execute_command(controller, command):
 		return False
 
 def run_file_mode(controller, commands):
-	"""ファイルモードでコマンドを実行"""
+	"""ファイルモードでコマンドを実行（リアルタイムグラフ付き）"""
 	if not commands:
 		return
 	
 	print(f"\n=== File Mode: {len(commands)} commands loaded ===")
 	print("Press ENTER to execute next command, 'q' + ENTER to quit file mode")
 	
+	# リアルタイムプロッターを開始
+	plotter = RealTimePlotter(controller)
+	plot_started = plotter.start_plotting()
+	
+	if plot_started:
+		print("\n📊 Real-time current/power monitoring started")
+		print("Close the graph window to stop monitoring")
+	else:
+		print("\n⚠️  Real-time plotting not available")
+	
 	current_index = 0
 	
-	while True:
-		# 現在のコマンドを表示
-		line_num, command = commands[current_index]
-		print(f"\n[{current_index + 1}/{len(commands)}] Line {line_num}: {command}")
-		
-		# ユーザー入力待ち
-		user_input = input(">>> ").strip()
-		
-		if user_input.lower() == 'q':
-			print("Exiting file mode")
-			break
-		elif user_input == '':
-			# エンターが押された場合、コマンドを実行
-			print(f"Executing: {command}")
-			execute_command(controller, command)
+	try:
+		while True:
+			# 現在のコマンドを表示
+			line_num, command = commands[current_index]
+			print(f"\n[{current_index + 1}/{len(commands)}] Line {line_num}: {command}")
 			
-			# 次のコマンドへ（最後まで行ったら最初に戻る）
-			current_index = (current_index + 1) % len(commands)
-			if current_index == 0:
-				print("\n--- Reached end of file, looping back to start ---")
-		else:
-			print("Press ENTER to execute, or 'q' to quit file mode")
+			# センサーデータも表示
+			data = controller.get_latest_sensor_data()
+			if data:
+				print(f"Current: {data.current_mA:.1f}mA, Battery: {data.battery_voltage:.2f}V")
+			
+			# ユーザー入力待ち
+			user_input = input(">>> ").strip()
+			
+			if user_input.lower() == 'q':
+				print("Exiting file mode")
+				break
+			elif user_input == '':
+				# エンターが押された場合、コマンドを実行
+				print(f"Executing: {command}")
+				execute_command(controller, command)
+				
+				# 次のコマンドへ（最後まで行ったら最初に戻る）
+				current_index = (current_index + 1) % len(commands)
+				if current_index == 0:
+					print("\n--- Reached end of file, looping back to start ---")
+			else:
+				print("Press ENTER to execute, or 'q' to quit file mode")
+				
+			# プロットウィンドウが閉じられたかチェック
+			if plot_started and not plt.get_fignums():
+				print("\n📊 Graph window closed - continuing without plot")
+				plot_started = False
+				
+	finally:
+		# プロッターを停止
+		if plot_started:
+			plotter.stop_plotting()
+			print("\n📊 Real-time monitoring stopped")
 
 def create_sample_file():
 	"""サンプルファイルを作成"""
