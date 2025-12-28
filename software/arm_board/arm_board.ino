@@ -39,17 +39,17 @@ bool ina219Available = false;
 String inputString = "";
 bool stringComplete = false;
 unsigned long lastSensorSend = 0;
-const unsigned long SENSOR_SEND_INTERVAL = 100;  // 100ms
+const unsigned long SENSOR_SEND_INTERVAL = 25;  // 25ms (40Hz)
 
 // Servo control variables
-int servo1_current_angle = 90;
-int servo1_target_angle = 90;
+float servo1_current_angle = 90.0;
+float servo1_target_angle = 90.0;
 int servo1_speed = 180;  // degrees per second (default: max speed)
-int servo2_current_angle = 90;
-int servo2_target_angle = 90;
+float servo2_current_angle = 90.0;
+float servo2_target_angle = 90.0;
 int servo2_speed = 180;  // degrees per second (default: max speed)
 unsigned long lastServoUpdate = 0;
-const unsigned long SERVO_UPDATE_INTERVAL = 20;  // 20ms = 50Hz update rate
+const unsigned long SERVO_UPDATE_INTERVAL = 5;  // 5ms = 200Hz update rate
 
 void setup() {
   // Initialize serial communication
@@ -99,7 +99,8 @@ void setup() {
   Serial.println("Setup complete!");
   Serial.println("Commands: S1<angle> S2<angle> M<speed> (e.g., S1090, S2180, M050)");
   inputString.reserve(200);  // Reserve memory for input string
-  delay(1000);
+  volatile int dummy;
+  for(int i=0; i!=3200; i++) { dummy = i; }
 }
 
 void loop() {
@@ -126,7 +127,9 @@ void loop() {
     lastSensorSend = millis();
   }
   
-  delay(1);  // Small delay for stability
+  // Small delay for stability (using empty loop instead of delay)
+  volatile int dummy;
+  for(int i=0; i!=2400; i++) { dummy = i; }  // approximately 1ms with assignment
 }
 
 // Utility Functions
@@ -300,7 +303,7 @@ void updateServoPositions() {
       servo1_current_angle -= step_size;
     }
     
-    servo1.write(servo1_current_angle);
+    servo1.write((int)servo1_current_angle);
   }
   
   // Update servo2 position
@@ -315,7 +318,7 @@ void updateServoPositions() {
       servo2_current_angle -= step_size;
     }
     
-    servo2.write(servo2_current_angle);
+    servo2.write((int)servo2_current_angle);
   }
 }
 
@@ -325,8 +328,8 @@ void updateServoPositions() {
  */
 void setServo1Angle(int angle) {
   angle = constrain(angle, 0, 180);
-  servo1_current_angle = angle;
-  servo1_target_angle = angle;
+  servo1_current_angle = (float)angle;
+  servo1_target_angle = (float)angle;
   servo1.write(angle);
 }
 
@@ -336,8 +339,8 @@ void setServo1Angle(int angle) {
  */
 void setServo2Angle(int angle) {
   angle = constrain(angle, 0, 180);
-  servo2_current_angle = angle;
-  servo2_target_angle = angle;
+  servo2_current_angle = (float)angle;
+  servo2_target_angle = (float)angle;
   servo2.write(angle);
 }
 
@@ -349,8 +352,16 @@ void setServo2Angle(int angle) {
 void setServo1AngleWithSpeed(int angle, int speed) {
   angle = constrain(angle, 0, 180);
   speed = constrain(speed, 1, 180);
-  servo1_target_angle = angle;
+  servo1_target_angle = (float)angle;
   servo1_speed = speed;
+  
+  // デバッグ情報を追加
+  Serial.print("DEBUG:S1 current=");
+  Serial.print(servo1_current_angle);
+  Serial.print(" target=");
+  Serial.print(servo1_target_angle);
+  Serial.print(" speed=");
+  Serial.println(servo1_speed);
 }
 
 /**
@@ -361,8 +372,16 @@ void setServo1AngleWithSpeed(int angle, int speed) {
 void setServo2AngleWithSpeed(int angle, int speed) {
   angle = constrain(angle, 0, 180);
   speed = constrain(speed, 1, 180);
-  servo2_target_angle = angle;
+  servo2_target_angle = (float)angle;
   servo2_speed = speed;
+  
+  // デバッグ情報を追加
+  Serial.print("DEBUG:S2 current=");
+  Serial.print(servo2_current_angle);
+  Serial.print(" target=");
+  Serial.print(servo2_target_angle);
+  Serial.print(" speed=");
+  Serial.println(servo2_speed);
 }
 
 /**
