@@ -1,0 +1,16 @@
+[Unit]
+Description=Menu Selector Display Service
+After=network.target
+
+[Service]
+Type=simple
+User=k-iida
+WorkingDirectory=/home/k-iida
+ExecStart=/home/k-iida/startup.sh
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
