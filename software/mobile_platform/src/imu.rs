@@ -4,7 +4,7 @@ use std::sync::Mutex;
 
 use esp_idf_hal::delay::FreeRtos;
 use esp_idf_hal::gpio::{
-    Gpio1, Gpio10, Gpio11, Gpio12, Gpio2, Gpio3, Gpio4, Gpio46, Gpio5, Gpio6, Output,
+    Gpio1, Gpio10, Gpio11, Gpio12, Gpio15, Gpio16, Gpio2, Gpio40, Gpio41, Gpio42, Gpio6, Gpio7, Gpio8, Gpio9, Output,
     PinDriver,
 };
 use esp_idf_hal::peripheral::Peripheral;
@@ -14,17 +14,17 @@ use esp_idf_hal::units::FromValueType;
 
 struct ImuHardware {
     spi: SpiDeviceDriver<'static, SpiDriver<'static>>,
-    chip_select: PinDriver<'static, Gpio10, Output>,
-    cs_bt: PinDriver<'static, Gpio6, Output>,
-    cs_lf: PinDriver<'static, Gpio11, Output>,
-    cs_ls: PinDriver<'static, Gpio4, Output>,
-    cs_rs: PinDriver<'static, Gpio2, Output>,
-    cs_rf: PinDriver<'static, Gpio46, Output>,
+    chip_select: PinDriver<'static, Gpio12, Output>,
+    cs_bt: PinDriver<'static, Gpio1, Output>,
+    cs_lf: PinDriver<'static, Gpio16, Output>,
+    cs_ls: PinDriver<'static, Gpio15, Output>,
+    cs_rs: PinDriver<'static, Gpio41, Output>,
+    cs_rf: PinDriver<'static, Gpio40, Output>,
 
-    en_lf: PinDriver<'static, Gpio12, Output>,
-    en_ls: PinDriver<'static, Gpio5, Output>,
-    en_rs: PinDriver<'static, Gpio3, Output>,
-    en_rf: PinDriver<'static, Gpio1, Output>,
+    en_lf: PinDriver<'static, Gpio6, Output>,
+    en_ls: PinDriver<'static, Gpio7, Output>,
+    en_rs: PinDriver<'static, Gpio42, Output>,
+    en_rf: PinDriver<'static, Gpio2, Output>,
 }
 
 static INSTANCE: Mutex<Option<Imu>> = Mutex::new(None);
@@ -43,19 +43,19 @@ impl Imu {
 
         let hardware = unsafe {
             let spi = peripherals.spi2.clone_unchecked();
-            let sclk = peripherals.pins.gpio9.clone_unchecked();
-            let sdo = peripherals.pins.gpio8.clone_unchecked();
-            let sdi = peripherals.pins.gpio7.clone_unchecked();
-            let cs = peripherals.pins.gpio10.clone_unchecked();
-            let cs_batt = peripherals.pins.gpio6.clone_unchecked();
-            let cs_lf = peripherals.pins.gpio11.clone_unchecked();
-            let cs_ls = peripherals.pins.gpio4.clone_unchecked();
-            let cs_rs = peripherals.pins.gpio2.clone_unchecked();
-            let cs_rf = peripherals.pins.gpio46.clone_unchecked();
-            let en_lf = peripherals.pins.gpio12.clone_unchecked();
-            let en_ls = peripherals.pins.gpio5.clone_unchecked();
-            let en_rs = peripherals.pins.gpio3.clone_unchecked();
-            let en_rf = peripherals.pins.gpio1.clone_unchecked();
+            let sclk = peripherals.pins.gpio11.clone_unchecked();
+            let sdo = peripherals.pins.gpio10.clone_unchecked();
+            let sdi = peripherals.pins.gpio9.clone_unchecked();
+            let cs = peripherals.pins.gpio12.clone_unchecked();
+            let cs_batt = peripherals.pins.gpio1.clone_unchecked();
+            let cs_lf = peripherals.pins.gpio16.clone_unchecked();
+            let cs_ls = peripherals.pins.gpio15.clone_unchecked();
+            let cs_rs = peripherals.pins.gpio41.clone_unchecked();
+            let cs_rf = peripherals.pins.gpio40.clone_unchecked();
+            let en_lf = peripherals.pins.gpio6.clone_unchecked();
+            let en_ls = peripherals.pins.gpio7.clone_unchecked();
+            let en_rs = peripherals.pins.gpio42.clone_unchecked();
+            let en_rf = peripherals.pins.gpio2.clone_unchecked();
 
             let config = spi::config::Config::new()
                 .baudrate(10.MHz().into())
@@ -65,7 +65,7 @@ impl Imu {
                 sclk,
                 sdo,
                 Some(sdi),
-                None as Option<Gpio10>,
+                None as Option<Gpio12>,
                 &SpiDriverConfig::new(),
                 &config,
             )?;
