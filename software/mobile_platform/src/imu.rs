@@ -1,5 +1,6 @@
 use embedded_hal::spi::MODE_3;
 use embedded_hal::delay::DelayNs;
+use std::sync::Mutex;
 
 use esp_idf_hal::delay::FreeRtos;
 use esp_idf_hal::gpio::{
@@ -10,274 +11,269 @@ use esp_idf_hal::peripheral::Peripheral;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_hal::spi::{self, SpiDeviceDriver, SpiDriver, SpiDriverConfig};
 use esp_idf_hal::units::FromValueType;
-use esp_idf_svc::sys::gpio_set_level;
 
-static CS_RF: i32 = 46;
-static EN_LF: i32 = 12;
-static CS_LF: i32 = 11;
-static CS_BT: i32 = 6;
-static EN_LS: i32 = 5;
-static CS_LS: i32 = 4;
-static EN_RS: i32 = 3;
-static CS_RS: i32 = 2;
-static EN_RF: i32 = 1;
-
-struct ImuHardware<'a> {
+struct ImuHardware {
     spi: SpiDeviceDriver<'static, SpiDriver<'static>>,
-    chip_select: PinDriver<'a, Gpio10, Output>,
-    cs_bt: PinDriver<'a, Gpio6, Output>,
-    cs_lf: PinDriver<'a, Gpio11, Output>,
-    cs_ls: PinDriver<'a, Gpio4, Output>,
-    cs_rs: PinDriver<'a, Gpio2, Output>,
-    cs_rf: PinDriver<'a, Gpio46, Output>,
+    chip_select: PinDriver<'static, Gpio10, Output>,
+    cs_bt: PinDriver<'static, Gpio6, Output>,
+    cs_lf: PinDriver<'static, Gpio11, Output>,
+    cs_ls: PinDriver<'static, Gpio4, Output>,
+    cs_rs: PinDriver<'static, Gpio2, Output>,
+    cs_rf: PinDriver<'static, Gpio46, Output>,
 
-    en_lf: PinDriver<'a, Gpio12, Output>,
-    en_ls: PinDriver<'a, Gpio5, Output>,
-    en_rs: PinDriver<'a, Gpio3, Output>,
-    en_rf: PinDriver<'a, Gpio1, Output>,
+    en_lf: PinDriver<'static, Gpio12, Output>,
+    en_ls: PinDriver<'static, Gpio5, Output>,
+    en_rs: PinDriver<'static, Gpio3, Output>,
+    en_rf: PinDriver<'static, Gpio1, Output>,
 }
 
-static mut HARDWARE: Option<ImuHardware<'static>> = None;
+static INSTANCE: Mutex<Option<Imu>> = Mutex::new(None);
 
-/*
-    Write command:
-        1st byte |   0 | AD6 | AD5 | AD4 | AD3 | AD2 | AD1 | AD0 |
-        2nd byte |                 Wite data                     |
-                                       :
-
-    Read command:
-        1st byte |   1 | AD6 | AD5 | AD4 | AD3 | AD2 | AD1 | AD0 |
-        2nd byte |                 Read data                     |
-                                       :
-*/
-
-// Transfer data to and from the IMU
-fn imu_transfer(read: &mut [u8], write: &[u8]) -> anyhow::Result<()> {
-    unsafe {
-        HARDWARE.as_mut().unwrap().chip_select.set_low()?;
-    }
-    FreeRtos.delay_us(1);
-    unsafe {
-        HARDWARE.as_mut().unwrap().spi.transfer(read, write)?;
-        HARDWARE.as_mut().unwrap().chip_select.set_high()?;
-    }
-    Ok(())
+pub struct Imu {
+    hardware: ImuHardware,
 }
 
-pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
-    unsafe {
-        let spi = peripherals.spi2.clone_unchecked();
-        let sclk = peripherals.pins.gpio9.clone_unchecked();
-        let sdo = peripherals.pins.gpio8.clone_unchecked();
-        let sdi = peripherals.pins.gpio7.clone_unchecked();
-        let cs = peripherals.pins.gpio10.clone_unchecked();
-        let cs_batt = peripherals.pins.gpio6.clone_unchecked();
-        let cs_lf = peripherals.pins.gpio11.clone_unchecked();
-        let cs_ls = peripherals.pins.gpio4.clone_unchecked();
-        let cs_rs = peripherals.pins.gpio2.clone_unchecked();
-        let cs_rf = peripherals.pins.gpio46.clone_unchecked();
-        let en_lf = peripherals.pins.gpio12.clone_unchecked();
-        let en_ls = peripherals.pins.gpio5.clone_unchecked();
-        let en_rs = peripherals.pins.gpio3.clone_unchecked();
-        let en_rf = peripherals.pins.gpio1.clone_unchecked();
+impl Imu {
+    /// Initialize the IMU hardware and create a singleton instance
+    pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
+        let mut instance = INSTANCE.lock().unwrap();
+        if instance.is_some() {
+            return Err(anyhow::anyhow!("IMU already initialized"));
+        }
 
-        let config = spi::config::Config::new()
-            .baudrate(10.MHz().into())
-            .data_mode(MODE_3);
-        let spi = SpiDeviceDriver::new_single(
-            spi,
-            sclk,
-            sdo,
-            Some(sdi),
-            None as Option<Gpio10>,
-            &SpiDriverConfig::new(),
-            &config,
-        )?;
+        let hardware = unsafe {
+            let spi = peripherals.spi2.clone_unchecked();
+            let sclk = peripherals.pins.gpio9.clone_unchecked();
+            let sdo = peripherals.pins.gpio8.clone_unchecked();
+            let sdi = peripherals.pins.gpio7.clone_unchecked();
+            let cs = peripherals.pins.gpio10.clone_unchecked();
+            let cs_batt = peripherals.pins.gpio6.clone_unchecked();
+            let cs_lf = peripherals.pins.gpio11.clone_unchecked();
+            let cs_ls = peripherals.pins.gpio4.clone_unchecked();
+            let cs_rs = peripherals.pins.gpio2.clone_unchecked();
+            let cs_rf = peripherals.pins.gpio46.clone_unchecked();
+            let en_lf = peripherals.pins.gpio12.clone_unchecked();
+            let en_ls = peripherals.pins.gpio5.clone_unchecked();
+            let en_rs = peripherals.pins.gpio3.clone_unchecked();
+            let en_rf = peripherals.pins.gpio1.clone_unchecked();
 
-        HARDWARE = Some(ImuHardware {
-            spi: spi,
-            chip_select: PinDriver::output(cs)?,
-            cs_bt: PinDriver::output(cs_batt)?,
-            cs_lf: PinDriver::output(cs_lf)?,
-            cs_ls: PinDriver::output(cs_ls)?,
-            cs_rs: PinDriver::output(cs_rs)?,
-            cs_rf: PinDriver::output(cs_rf)?,
-            en_lf: PinDriver::output(en_lf)?,
-            en_ls: PinDriver::output(en_ls)?,
-            en_rs: PinDriver::output(en_rs)?,
-            en_rf: PinDriver::output(en_rf)?,
-        });
+            let config = spi::config::Config::new()
+                .baudrate(10.MHz().into())
+                .data_mode(MODE_3);
+            let spi = SpiDeviceDriver::new_single(
+                spi,
+                sclk,
+                sdo,
+                Some(sdi),
+                None as Option<Gpio10>,
+                &SpiDriverConfig::new(),
+                &config,
+            )?;
+
+            ImuHardware {
+                spi,
+                chip_select: PinDriver::output(cs)?,
+                cs_bt: PinDriver::output(cs_batt)?,
+                cs_lf: PinDriver::output(cs_lf)?,
+                cs_ls: PinDriver::output(cs_ls)?,
+                cs_rs: PinDriver::output(cs_rs)?,
+                cs_rf: PinDriver::output(cs_rf)?,
+                en_lf: PinDriver::output(en_lf)?,
+                en_ls: PinDriver::output(en_ls)?,
+                en_rs: PinDriver::output(en_rs)?,
+                en_rf: PinDriver::output(en_rf)?,
+            }
+        };
+
+        let mut imu = Imu { hardware };
+        
+        // Initialize sensors to off state
+        imu.off_lf()?;
+        imu.off_ls()?;
+        imu.off_rs()?;
+        imu.off_rf()?;
+
+        let mut r_buffer = [0x00, 0x00];
+
+        // Set 1 to FUNC_CFG_ACCES bit in FUNC_CFG_ACCESS (01h) register,
+        // to enable writing to configuration registers
+        let w_buffer = [0x01, 0x80];
+        imu.transfer(&mut r_buffer, &w_buffer)?;
+
+        // Configure CTRL2_G (11h) register
+        //   Data rate : 6.66kHz (high performance)
+        //   Full scale : +/-2000[dps]
+        let w_buffer = [0x11, 0xac];
+        imu.transfer(&mut r_buffer, &w_buffer)?;
+
+        *instance = Some(imu);
+        Ok(())
     }
 
-    off_lf()?;
-    off_ls()?;
-    off_rs()?;
-    off_rf()?;
-
-    let mut r_buffer = [0x00, 0x00];
-
-    // Set 1 to FUNC_CFG_ACCES bit in FUNC_CFG_ACCESS (01h) register,
-    // to enable writing to configuration registers
-    let w_buffer = [0x01, 0x80];
-    imu_transfer(&mut r_buffer, &w_buffer)?;
-
-    // Configure CTRL2_G (11h) register
-    //   Data rate : 6.66kHz (high performance)
-    //   Full scale : +/-2000[dps]
-    let w_buffer = [0x11, 0xac];
-    imu_transfer(&mut r_buffer, &w_buffer)?;
-
-    Ok(())
-}
-
-pub fn read() -> anyhow::Result<i16> {
-    // Read OUTZ_L_G (26h) and OUTZ_H_G (27h)
-    let w_buffer: [u8; 3] = [0xa6, 0xff, 0xff]; // Read 2 bytes from 0x26
-    let mut r_buffer: [u8; 3] = [0, 0, 0];
-    imu_transfer(&mut r_buffer, &w_buffer)?;
-
-    let result = ((r_buffer[2] as i16) << 8) | (r_buffer[1] as i16);
-
-    Ok(result)
-}
-
-pub fn read_batt() -> anyhow::Result<u16> {
-    let write = [0xff, 0xff];
-    let mut read = [0, 0];
-    unsafe {
-        let hw = HARDWARE.as_mut().unwrap();
-        gpio_set_level(CS_BT, 0);
-        hw.spi.transfer(&mut read, &write)?;
-        gpio_set_level(CS_BT, 1);
+    /// Get a mutable reference to the singleton instance
+    fn with_instance_mut<F, R>(f: F) -> anyhow::Result<R>
+    where
+        F: FnOnce(&mut Imu) -> anyhow::Result<R>,
+    {
+        let mut instance = INSTANCE.lock().unwrap();
+        match instance.as_mut() {
+            Some(imu) => f(imu),
+            None => Err(anyhow::anyhow!("IMU not initialized")),
+        }
     }
 
-    let result = ((read[0] as u16) << 8) | read[1] as u16;
-    let result = result & 0x1fff;
-    let result = result / 2;
-
-    Ok(result)
-}
-
-pub fn read_lf() -> anyhow::Result<u16> {
-    let write = [0xff, 0xff];
-    let mut read = [0, 0];
-    unsafe {
-        let hw = HARDWARE.as_mut().unwrap();
-        gpio_set_level(CS_LF, 0);
-        hw.spi.transfer(&mut read, &write)?;
-        gpio_set_level(CS_LF, 1);
+    /// Transfer data to and from the IMU
+    fn transfer(&mut self, read: &mut [u8], write: &[u8]) -> anyhow::Result<()> {
+        self.hardware.chip_select.set_low()?;
+        FreeRtos.delay_us(1);
+        self.hardware.spi.transfer(read, write)?;
+        self.hardware.chip_select.set_high()?;
+        Ok(())
     }
 
-    let result = ((read[0] as u16) << 8) | read[1] as u16;
-    let result = result & 0x1fff;
-    let result = result / 2;
+    /// Read gyroscope Z-axis data
+    pub fn read() -> anyhow::Result<i16> {
+        Self::with_instance_mut(|imu| {
+            // Read OUTZ_L_G (26h) and OUTZ_H_G (27h)
+            let w_buffer: [u8; 3] = [0xa6, 0xff, 0xff]; // Read 2 bytes from 0x26
+            let mut r_buffer: [u8; 3] = [0, 0, 0];
+            imu.transfer(&mut r_buffer, &w_buffer)?;
 
-    Ok(result)
-}
-
-pub fn read_ls() -> anyhow::Result<u16> {
-    let write = [0xff, 0xff];
-    let mut read = [0, 0];
-    unsafe {
-        let hw = HARDWARE.as_mut().unwrap();
-        gpio_set_level(CS_LS, 0);
-        hw.spi.transfer(&mut read, &write)?;
-        gpio_set_level(CS_LS, 1);
+            let result = ((r_buffer[2] as i16) << 8) | (r_buffer[1] as i16);
+            Ok(result)
+        })
     }
 
-    let result = ((read[0] as u16) << 8) | read[1] as u16;
-    let result = result & 0x1fff;
-    let result = result / 2;
+    /// Read battery voltage
+    pub fn read_batt() -> anyhow::Result<u16> {
+        Self::with_instance_mut(|imu| {
+            let write = [0xff, 0xff];
+            let mut read = [0, 0];
+            
+            imu.hardware.cs_bt.set_low()?;
+            imu.hardware.spi.transfer(&mut read, &write)?;
+            imu.hardware.cs_bt.set_high()?;
 
-    Ok(result)
-}
-
-pub fn read_rf() -> anyhow::Result<u16> {
-    let write = [0xff, 0xff];
-    let mut read = [0, 0];
-    unsafe {
-        let hw = HARDWARE.as_mut().unwrap();
-        gpio_set_level(CS_RF, 0);
-        hw.spi.transfer(&mut read, &write)?;
-        gpio_set_level(CS_RF, 1);
+            let result = ((read[0] as u16) << 8) | read[1] as u16;
+            let result = result & 0x1fff;
+            let result = result / 2;
+            Ok(result)
+        })
     }
 
-    let result = ((read[0] as u16) << 8) | read[1] as u16;
-    let result = result & 0x1fff;
-    let result = result / 2;
+    /// Read left-front distance sensor
+    pub fn read_lf() -> anyhow::Result<u16> {
+        Self::with_instance_mut(|imu| {
+            let write = [0xff, 0xff];
+            let mut read = [0, 0];
+            
+            imu.hardware.cs_lf.set_low()?;
+            imu.hardware.spi.transfer(&mut read, &write)?;
+            imu.hardware.cs_lf.set_high()?;
 
-    Ok(result)
-}
-
-pub fn read_rs() -> anyhow::Result<u16> {
-    let write = [0xff, 0xff];
-    let mut read = [0, 0];
-    unsafe {
-        let hw = HARDWARE.as_mut().unwrap();
-        gpio_set_level(CS_RS, 0);
-        hw.spi.transfer(&mut read, &write)?;
-        gpio_set_level(CS_RS, 1);
+            let result = ((read[0] as u16) << 8) | read[1] as u16;
+            let result = result & 0x1fff;
+            let result = result / 2;
+            Ok(result)
+        })
     }
 
-    let result = ((read[0] as u16) << 8) | read[1] as u16;
-    let result = result & 0x1fff;
-    let result = result / 2;
+    /// Read left-side distance sensor
+    pub fn read_ls() -> anyhow::Result<u16> {
+        Self::with_instance_mut(|imu| {
+            let write = [0xff, 0xff];
+            let mut read = [0, 0];
+            
+            imu.hardware.cs_ls.set_low()?;
+            imu.hardware.spi.transfer(&mut read, &write)?;
+            imu.hardware.cs_ls.set_high()?;
 
-    Ok(result)
-}
-
-pub fn on_lf() -> anyhow::Result<()> {
-    unsafe {
-        gpio_set_level(EN_LF, 1);
+            let result = ((read[0] as u16) << 8) | read[1] as u16;
+            let result = result & 0x1fff;
+            let result = result / 2;
+            Ok(result)
+        })
     }
-    Ok(())
-}
 
-pub fn off_lf() -> anyhow::Result<()> {
-    unsafe {
-        gpio_set_level(EN_LF, 0);
-    }
-    Ok(())
-}
+    /// Read right-front distance sensor
+    pub fn read_rf() -> anyhow::Result<u16> {
+        Self::with_instance_mut(|imu| {
+            let write = [0xff, 0xff];
+            let mut read = [0, 0];
+            
+            imu.hardware.cs_rf.set_low()?;
+            imu.hardware.spi.transfer(&mut read, &write)?;
+            imu.hardware.cs_rf.set_high()?;
 
-pub fn on_ls() -> anyhow::Result<()> {
-    unsafe {
-        gpio_set_level(EN_LS, 1);
+            let result = ((read[0] as u16) << 8) | read[1] as u16;
+            let result = result & 0x1fff;
+            let result = result / 2;
+            Ok(result)
+        })
     }
-    Ok(())
-}
 
-pub fn off_ls() -> anyhow::Result<()> {
-    unsafe {
-        gpio_set_level(EN_LS, 0);
-    }
-    Ok(())
-}
+    /// Read right-side distance sensor
+    pub fn read_rs() -> anyhow::Result<u16> {
+        Self::with_instance_mut(|imu| {
+            let write = [0xff, 0xff];
+            let mut read = [0, 0];
+            
+            imu.hardware.cs_rs.set_low()?;
+            imu.hardware.spi.transfer(&mut read, &write)?;
+            imu.hardware.cs_rs.set_high()?;
 
-pub fn on_rf() -> anyhow::Result<()> {
-    unsafe {
-        gpio_set_level(EN_RF, 1);
+            let result = ((read[0] as u16) << 8) | read[1] as u16;
+            let result = result & 0x1fff;
+            let result = result / 2;
+            Ok(result)
+        })
     }
-    Ok(())
-}
 
-pub fn off_rf() -> anyhow::Result<()> {
-    unsafe {
-        gpio_set_level(EN_RF, 0);
+    /// Turn on left-front distance sensor
+    pub fn on_lf(&mut self) -> anyhow::Result<()> {
+        self.hardware.en_lf.set_high()?;
+        Ok(())
     }
-    Ok(())
-}
 
-pub fn on_rs() -> anyhow::Result<()> {
-    unsafe {
-        gpio_set_level(EN_RS, 1);
+    /// Turn off left-front distance sensor
+    pub fn off_lf(&mut self) -> anyhow::Result<()> {
+        self.hardware.en_lf.set_low()?;
+        Ok(())
     }
-    Ok(())
-}
 
-pub fn off_rs() -> anyhow::Result<()> {
-    unsafe {
-        gpio_set_level(EN_RS, 0);
+    /// Turn on left-side distance sensor
+    pub fn on_ls(&mut self) -> anyhow::Result<()> {
+        self.hardware.en_ls.set_high()?;
+        Ok(())
     }
-    Ok(())
+
+    /// Turn off left-side distance sensor
+    pub fn off_ls(&mut self) -> anyhow::Result<()> {
+        self.hardware.en_ls.set_low()?;
+        Ok(())
+    }
+
+    /// Turn on right-front distance sensor
+    pub fn on_rf(&mut self) -> anyhow::Result<()> {
+        self.hardware.en_rf.set_high()?;
+        Ok(())
+    }
+
+    /// Turn off right-front distance sensor
+    pub fn off_rf(&mut self) -> anyhow::Result<()> {
+        self.hardware.en_rf.set_low()?;
+        Ok(())
+    }
+
+    /// Turn on right-side distance sensor
+    pub fn on_rs(&mut self) -> anyhow::Result<()> {
+        self.hardware.en_rs.set_high()?;
+        Ok(())
+    }
+
+    /// Turn off right-side distance sensor
+    pub fn off_rs(&mut self) -> anyhow::Result<()> {
+        self.hardware.en_rs.set_low()?;
+        Ok(())
+    }
 }
