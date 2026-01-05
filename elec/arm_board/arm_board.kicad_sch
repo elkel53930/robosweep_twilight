@@ -6551,6 +6551,76 @@
 		(uuid "fb111600-5300-4f54-9f1d-caf9884203b0")
 	)
 	(symbol
+		(lib_id "Device:R_Small")
+		(at 185.42 139.7 0)
+		(mirror x)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "03028c36-14e0-4f2d-9f5f-469d64a8886c")
+		(property "Reference" "R6"
+			(at 186.436 140.97 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "0603WAF1001T5E"
+			(at 186.436 138.43 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
+			(at 185.42 139.7 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 185.42 139.7 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "1k"
+			(at 187.706 138.938 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "2"
+			(uuid "73b5f074-3a32-4b4a-9044-a3f4b9fb3907")
+		)
+		(pin "1"
+			(uuid "ababf3ec-c57a-4476-9ba9-0bb327d2455f")
+		)
+		(instances
+			(project "arm_board"
+				(path "/b9dd576e-ace2-4f94-83b5-c2d817487438"
+					(reference "R6")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "Device:C_Small")
 		(at 124.46 50.8 180)
 		(unit 1)
@@ -6632,6 +6702,76 @@
 			(project "arm_board"
 				(path "/b9dd576e-ace2-4f94-83b5-c2d817487438"
 					(reference "C26")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R_Small")
+		(at 162.56 149.86 270)
+		(mirror x)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "039f1611-9baa-4e6c-b29b-7dff7f3cb5b9")
+		(property "Reference" "R7"
+			(at 163.83 148.844 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "0603WAF1001T5E"
+			(at 161.29 148.844 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
+			(at 162.56 149.86 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 162.56 149.86 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "1k"
+			(at 161.798 147.574 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "2"
+			(uuid "20724b96-c1a0-47fe-a09e-1c3f8b9fb86d")
+		)
+		(pin "1"
+			(uuid "ee02f67c-e1a4-4781-8869-6325f7767137")
+		)
+		(instances
+			(project "arm_board"
+				(path "/b9dd576e-ace2-4f94-83b5-c2d817487438"
+					(reference "R7")
 					(unit 1)
 				)
 			)
@@ -7252,76 +7392,6 @@
 		)
 	)
 	(symbol
-		(lib_id "Device:R_Small")
-		(at 199.39 81.28 0)
-		(mirror x)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "171861dc-b43b-4637-bcde-68f76536fd36")
-		(property "Reference" "R2"
-			(at 200.406 82.55 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "10k"
-			(at 200.406 80.01 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
-			(at 199.39 81.28 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 199.39 81.28 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Resistor, small symbol"
-			(at 199.39 81.28 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "2"
-			(uuid "17da0b51-3d76-4726-b9bd-2c3b2396eefa")
-		)
-		(pin "1"
-			(uuid "cbcff583-fef1-4e1d-b8d4-4ddd3f24a4c2")
-		)
-		(instances
-			(project "arm_board"
-				(path "/b9dd576e-ace2-4f94-83b5-c2d817487438"
-					(reference "R2")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "power:+5V")
 		(at 215.9 64.77 0)
 		(unit 1)
@@ -7806,6 +7876,76 @@
 			(project "arm_board"
 				(path "/b9dd576e-ace2-4f94-83b5-c2d817487438"
 					(reference "#PWR017")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R_Small")
+		(at 199.39 91.44 0)
+		(mirror x)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "29516d7e-2db5-430d-acc5-a52a321ab8d4")
+		(property "Reference" "R5"
+			(at 200.406 92.71 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "0603WAF3901T5E"
+			(at 200.406 90.17 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
+			(at 199.39 91.44 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 199.39 91.44 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "3.9k"
+			(at 202.692 90.678 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "2"
+			(uuid "95f86913-14ea-419c-b696-90e794c64d0f")
+		)
+		(pin "1"
+			(uuid "9fe3d49f-ba83-49af-97ec-c6e892636f22")
+		)
+		(instances
+			(project "arm_board"
+				(path "/b9dd576e-ace2-4f94-83b5-c2d817487438"
+					(reference "R5")
 					(unit 1)
 				)
 			)
@@ -8304,6 +8444,76 @@
 		)
 	)
 	(symbol
+		(lib_id "Device:R_Small")
+		(at 199.39 81.28 0)
+		(mirror x)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "4efad0e0-2a5c-4202-8173-ef047804bed6")
+		(property "Reference" "R2"
+			(at 200.406 82.55 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "0603WAF1002T5E"
+			(at 200.406 80.01 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
+			(at 199.39 81.28 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 199.39 81.28 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "10k"
+			(at 202.184 80.518 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "2"
+			(uuid "dd75246c-41c5-4843-8d99-57f62affb56a")
+		)
+		(pin "1"
+			(uuid "5aed4bff-a281-4550-8585-6ace48ee1520")
+		)
+		(instances
+			(project "arm_board"
+				(path "/b9dd576e-ace2-4f94-83b5-c2d817487438"
+					(reference "R2")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:+BATT")
 		(at 242.57 64.77 0)
 		(mirror y)
@@ -8705,6 +8915,76 @@
 		)
 	)
 	(symbol
+		(lib_id "Device:R_Small")
+		(at 175.26 135.89 0)
+		(mirror x)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "6c5d5bb6-56aa-477d-8fee-f7ff633a5561")
+		(property "Reference" "R4"
+			(at 176.276 137.16 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "0603WAF1001T5E"
+			(at 176.276 134.62 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
+			(at 175.26 135.89 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 175.26 135.89 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "1k"
+			(at 177.546 135.128 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "2"
+			(uuid "ca990718-4728-41dd-9e97-13553edb2048")
+		)
+		(pin "1"
+			(uuid "1fe69291-264a-421f-a3f3-c8d90ebe7247")
+		)
+		(instances
+			(project "arm_board"
+				(path "/b9dd576e-ace2-4f94-83b5-c2d817487438"
+					(reference "R4")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "Connector_Generic:Conn_01x02")
 		(at 254 81.28 0)
 		(mirror x)
@@ -9015,76 +9295,6 @@
 		)
 	)
 	(symbol
-		(lib_id "Device:R_Small")
-		(at 199.39 91.44 0)
-		(mirror x)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "76263c8a-d177-46b1-be32-d1cfa38a4096")
-		(property "Reference" "R5"
-			(at 200.406 92.71 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "3.9k"
-			(at 200.406 90.17 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
-			(at 199.39 91.44 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 199.39 91.44 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Resistor, small symbol"
-			(at 199.39 91.44 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "2"
-			(uuid "9840fc6b-0350-4e3d-8493-40b1cd8ca41f")
-		)
-		(pin "1"
-			(uuid "ebae2360-4330-4741-842f-d4fb2048347f")
-		)
-		(instances
-			(project "arm_board"
-				(path "/b9dd576e-ace2-4f94-83b5-c2d817487438"
-					(reference "R5")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "power:+5V")
 		(at 67.31 66.04 0)
 		(unit 1)
@@ -9298,75 +9508,6 @@
 		)
 	)
 	(symbol
-		(lib_id "Device:R_Small")
-		(at 162.56 149.86 90)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "80a1b35b-9ad0-4052-915b-08415cc21e9f")
-		(property "Reference" "R8"
-			(at 161.29 148.844 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "1k"
-			(at 163.83 148.844 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
-			(at 162.56 149.86 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 162.56 149.86 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Resistor, small symbol"
-			(at 162.56 149.86 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "2"
-			(uuid "8b135c7e-439d-444c-ab56-32097fbac49f")
-		)
-		(pin "1"
-			(uuid "a3ae3963-adcc-4268-b65e-de89f3295f29")
-		)
-		(instances
-			(project "arm_board"
-				(path "/b9dd576e-ace2-4f94-83b5-c2d817487438"
-					(reference "R8")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "power:GND")
 		(at 115.57 107.95 0)
 		(unit 1)
@@ -9499,75 +9640,6 @@
 		)
 	)
 	(symbol
-		(lib_id "Device:R_Small")
-		(at 162.56 152.4 270)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "870f59e0-2a1a-472f-ad97-fe323279b5d6")
-		(property "Reference" "R9"
-			(at 163.83 153.416 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "1k"
-			(at 161.29 153.416 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
-			(at 162.56 152.4 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 162.56 152.4 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Resistor, small symbol"
-			(at 162.56 152.4 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "2"
-			(uuid "71b29e83-9d80-41c1-8be5-c68a27fec5c7")
-		)
-		(pin "1"
-			(uuid "a82ea43b-9b19-4255-881c-1f88ef9f745d")
-		)
-		(instances
-			(project "arm_board"
-				(path "/b9dd576e-ace2-4f94-83b5-c2d817487438"
-					(reference "R9")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "Device:C_Small")
 		(at 105.41 165.1 0)
 		(mirror x)
@@ -9657,13 +9729,14 @@
 				(justify left)
 			)
 		)
-		(property "Value" "1k"
+		(property "Value" "0603WAF1001T5E"
 			(at 171.196 134.62 0)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
 				(justify left)
+				(hide yes)
 			)
 		)
 		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
@@ -9684,13 +9757,12 @@
 				(hide yes)
 			)
 		)
-		(property "Description" "Resistor, small symbol"
-			(at 170.18 135.89 0)
+		(property "Description" "1k"
+			(at 172.466 135.128 0)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
-				(hide yes)
 			)
 		)
 		(pin "2"
@@ -10878,76 +10950,6 @@
 		)
 	)
 	(symbol
-		(lib_id "Device:R_Small")
-		(at 175.26 135.89 0)
-		(mirror x)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "cdef365f-865f-44f1-90a0-3771993ed79b")
-		(property "Reference" "R4"
-			(at 176.276 137.16 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "1k"
-			(at 176.276 134.62 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
-			(at 175.26 135.89 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 175.26 135.89 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Resistor, small symbol"
-			(at 175.26 135.89 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "2"
-			(uuid "9268a025-4300-4ad2-81cd-1c3416d60b83")
-		)
-		(pin "1"
-			(uuid "21c80dce-dd64-4d23-9763-385362fcfeed")
-		)
-		(instances
-			(project "arm_board"
-				(path "/b9dd576e-ace2-4f94-83b5-c2d817487438"
-					(reference "R4")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "power:+5VA")
 		(at 257.81 25.4 0)
 		(unit 1)
@@ -11008,6 +11010,75 @@
 			(project "arm_board"
 				(path "/b9dd576e-ace2-4f94-83b5-c2d817487438"
 					(reference "#PWR04")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R_Small")
+		(at 162.56 152.4 270)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "d0091f35-77ef-46bc-b210-ea264c7afcc0")
+		(property "Reference" "R8"
+			(at 163.83 153.416 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "0603WAF1001T5E"
+			(at 161.29 153.416 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
+			(at 162.56 152.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 162.56 152.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "1k"
+			(at 161.798 154.686 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "2"
+			(uuid "03d603e8-5cd8-40b9-af46-259df4d46b07")
+		)
+		(pin "1"
+			(uuid "f1ba3d48-4387-4208-b4a6-329853188718")
+		)
+		(instances
+			(project "arm_board"
+				(path "/b9dd576e-ace2-4f94-83b5-c2d817487438"
+					(reference "R8")
 					(unit 1)
 				)
 			)
@@ -11581,76 +11652,6 @@
 			(project "arm_board"
 				(path "/b9dd576e-ace2-4f94-83b5-c2d817487438"
 					(reference "C38")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Device:R_Small")
-		(at 185.42 139.7 0)
-		(mirror x)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "f128df77-f04a-4e3b-9b8c-24e31efef60d")
-		(property "Reference" "R6"
-			(at 186.436 140.97 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "1k"
-			(at 186.436 138.43 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
-			(at 185.42 139.7 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 185.42 139.7 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Resistor, small symbol"
-			(at 185.42 139.7 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "2"
-			(uuid "4d392ca2-0b75-4f7e-adb1-e4c21a960487")
-		)
-		(pin "1"
-			(uuid "8e674c39-a283-4877-b905-e791cde7e1e7")
-		)
-		(instances
-			(project "arm_board"
-				(path "/b9dd576e-ace2-4f94-83b5-c2d817487438"
-					(reference "R6")
 					(unit 1)
 				)
 			)
