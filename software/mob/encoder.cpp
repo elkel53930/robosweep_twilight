@@ -3,7 +3,7 @@
 #include "encoder.h"
 
 Encoder::Encoder() : encoder_spi(FSPI) {
-    // FSPIを使用（HSPIは既存のADC/IMUで使用中）
+    // FSPIを使用（HSPIはADC/IMUで使用）
 }
 
 void Encoder::begin() {
@@ -17,30 +17,6 @@ void Encoder::begin() {
     
     // 専用SPIバスの初期化
     encoder_spi.begin(SCK_PIN, MISO_PIN, MOSI_PIN, -1);
-    
-    Serial.println("Encoder controller initialized");
-    Serial.print("SPI pins - MOSI: GPIO");
-    Serial.print(MOSI_PIN);
-    Serial.print(", MISO: GPIO");
-    Serial.print(MISO_PIN);
-    Serial.print(", SCK: GPIO");
-    Serial.println(SCK_PIN);
-    Serial.print("CS pins - Right: GPIO");
-    Serial.print(RIGHT_CS_PIN);
-    Serial.print(", Left: GPIO");
-    Serial.println(LEFT_CS_PIN);
-    Serial.print("SPI frequency: ");
-    Serial.print(SPI_FREQUENCY / 1000);
-    Serial.println(" kHz");
-    
-    // 初期読み取りテスト
-    delay(100);
-    uint16_t right_test = read_right_angle();
-    uint16_t left_test = read_left_angle();
-    Serial.print("Initial encoder test - Right: ");
-    Serial.print(right_test);
-    Serial.print(", Left: ");
-    Serial.println(left_test);
 }
 
 uint16_t Encoder::read_right_angle() {

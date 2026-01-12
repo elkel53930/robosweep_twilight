@@ -50,6 +50,12 @@ int16_t IMU::read_gyro_z() {
     return result;
 }
 
+float IMU::convert_gyro_z_to_dps(int16_t raw_value) {
+    // 生データを物理値（度/秒）に変換
+    // FS = ±2000dps の場合、感度は 70 mdps/LSB = 0.070 dps/LSB
+    return (float)raw_value * GYRO_SENSITIVITY;
+}
+
 uint8_t IMU::read_who_am_i() {
     // WHO_AM_I レジスタを読み取り
     const uint8_t w_buffer[2] = {0x8F, 0xFF}; // 0x0F with read bit (0x80)

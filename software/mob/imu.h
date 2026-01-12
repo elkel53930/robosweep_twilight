@@ -9,6 +9,7 @@ public:
     IMU(SPIClass& spi_bus);
     bool begin();  // IMU初期化
     int16_t read_gyro_z();  // Z軸ジャイロデータ読み取り
+    float convert_gyro_z_to_dps(int16_t raw_value);  // GyroZ生データを物理値(dps)に変換
     uint8_t read_who_am_i();  // WHO_AM_Iレジスタ読み取り（デバッグ用）
     uint8_t read_status();   // ステータスレジスタ読み取り
     
@@ -17,6 +18,10 @@ private:
     
     // IMUのCSピン定数
     static constexpr int IMU_CS = 12;  // CSピンを適切なピンに設定してください
+    
+    // ジャイロスコープの感度定数（LSM6DSR データシート参照）
+    // FS = ±2000dps の場合: 70 mdps/LSB = 0.070 dps/LSB
+    static constexpr float GYRO_SENSITIVITY = 0.070f;  // dps/LSB
     
     // レジスタアドレス定数
     static constexpr uint8_t WHO_AM_I = 0x0F;
