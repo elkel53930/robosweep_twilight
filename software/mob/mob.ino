@@ -9,6 +9,7 @@
 #include "imu.h"
 #include "motor.h"
 #include "encoder.h"
+#include "sensors.h"
 
 // グローバルなクラスは、上から順に初期化される
 ADC adc(get_shared_spi());
@@ -17,20 +18,10 @@ WallSensor wall_sensor(adc);
 IMU imu(get_shared_spi());
 Motor motor;
 Encoder encoder;
+Sensors sensors(imu, wall_sensor, adc, encoder);
 
 hw_timer_t* high_speed_timer = NULL;
 std::atomic<uint32_t> timer_ticks(0);
-
-struct {
-    std::atomic<float> gyro_z; // Z軸ジャイロ角速度（度/秒）
-    std::atomic<uint16_t> lf; // 左前壁センサー値
-    std::atomic<uint16_t> rf; // 右前壁センサー値
-    std::atomic<uint16_t> ls; // 左側壁センサー値
-    std::atomic<uint16_t> rs; // 右側壁センサー値
-    std::atomic<float> Vbatt; // バッテリー電圧
-    std::atomic<uint16_t> r_deg; // 右車輪角度（度）
-    std::atomic<uint16_t> l_deg; // 左車輪角度（度）
-} sensor_data;
 
 QueueHandle_t cmd_queue; // コマンドキュー
 
@@ -77,32 +68,8 @@ void Core0RealtimeTask(void* parameter) {
         last_tick = timer_ticks.load(std::memory_order_relaxed);
 
         // 1msごとの処理をここに記述
-        // IMUデータの読み取り
-        int16_t raw_gyro_z = imu.read_gyro_z();
-        float gyro_z_dps = imu.convert_gyro_z_to_dps(raw_gyro_z);
-        sensor_data.gyro_z.store(gyro_z_dps, std::memory_order_release);
-
-        // 壁センサー値の読み取り
-        uint16_t lf_value = wall_sensor.lf();
-        uint16_t rf_value = wall_sensor.rf();
-        uint16_t ls_value = wall_sensor.ls();
-        uint16_t rs_value = wall_sensor.rs();
-        sensor_data.lf.store(lf_value, std::memory_order_release);
-        sensor_data.rf.store(rf_value, std::memory_order_release);
-        sensor_data.ls.store(ls_value, std::memory_order_release);
-        sensor_data.rs.store(rs_value, std::memory_order_release);
-        
-        // バッテリー電圧の読み取り
-        float voltage;
-        adc.batt_read(voltage);
-        sensor_data.Vbatt.store(voltage, std::memory_order_release);
-
-        // エンコーダー角度の読み取り
-        uint16_t r_angle;
-        uint16_t l_angle;
-        encoder.read_both_angles(r_angle, l_angle);
-        sensor_data.r_deg.store(r_angle, std::memory_order_release);
-        sensor_data.l_deg.store(l_angle, std::memory_order_release);
+        // センサーデータの更新
+        sensors.update();
         
         // コマンドキューの処理
         SetMotorSpeedCommand cmd;
@@ -117,13 +84,9 @@ void Core0RealtimeTask(void* parameter) {
 void setup() {
     Serial.begin(3000000);
     delay(100);
-
-    // === WDT完全無効化（重要！） ===
     
     // 1. ハードウェアWDT無効化
     disableCore0WDT();
-    
-    Serial.println("WDT completely disabled");
     
     // WiFi/Bluetooth無効化
     WiFi.mode(WIFI_OFF);
@@ -146,7 +109,7 @@ void setup() {
     BaseType_t result = xTaskCreatePinnedToCore(
         Core0RealtimeTask,
         "Core0RT",
-        4096,  // スタックサイズを増やす
+        4096,
         NULL,
         configMAX_PRIORITIES - 1,  // 最高優先度
         NULL,
@@ -169,14 +132,14 @@ void loop() {
     if (millis() - last_print >= 100) {
         last_print = millis();
         
-        float gyro = sensor_data.gyro_z.load(std::memory_order_acquire);
-        float vbatt = sensor_data.Vbatt.load(std::memory_order_acquire);
-        uint16_t lf = sensor_data.lf.load(std::memory_order_acquire);
-        uint16_t ls = sensor_data.ls.load(std::memory_order_acquire);
-        uint16_t rs = sensor_data.rs.load(std::memory_order_acquire);
-        uint16_t rf = sensor_data.rf.load(std::memory_order_acquire);
-        uint16_t enc_r = sensor_data.r_deg.load(std::memory_order_acquire);
-        uint16_t enc_l = sensor_data.l_deg.load(std::memory_order_acquire);
+        float gyro = sensors.get_gyro_z();
+        float vbatt = sensors.get_battery_voltage();
+        uint16_t lf = sensors.get_lf();
+        uint16_t ls = sensors.get_ls();
+        uint16_t rs = sensors.get_rs();
+        uint16_t rf = sensors.get_rf();
+        uint16_t enc_r = sensors.get_right_wheel_angle();
+        uint16_t enc_l = sensors.get_left_wheel_angle();
         
         Serial.printf("SEN,%.2f,%.2f,%u,%u,%u,%u,%u,%u\n",
                       gyro, vbatt, lf, ls, rs, rf, enc_r, enc_l);
