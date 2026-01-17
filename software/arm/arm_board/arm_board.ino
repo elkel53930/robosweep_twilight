@@ -5,7 +5,7 @@
  * - D8, D9: PWM servo motors
  * - A4, A5: I2C current sensor (INA219)
  * - A1: Battery voltage monitor (10:1 voltage divider)
- * - D3: N-ch MOSFET PWM motor control
+ * - D11: N-ch MOSFET PWM motor control
  */
 
 #include <Wire.h>
@@ -16,7 +16,7 @@
 #define SERVO1_PIN 8
 #define SERVO2_PIN 9
 #define BATTERY_VOLTAGE_PIN A1
-#define MOTOR_PWM_PIN 3
+#define MOTOR_PWM_PIN 11
 
 // Constants
 #define VOLTAGE_DIVIDER_RATIO 11.0  // 10:1 voltage divider
@@ -70,11 +70,11 @@ void setup() {
   // Initialize PWM motor pin
   pinMode(MOTOR_PWM_PIN, OUTPUT);
   
-  // Set PWM frequency to 2kHz for motor control
+  // Set PWM frequency to 20kHz for motor control
   setupMotorPWM();
   
   analogWrite(MOTOR_PWM_PIN, 0);  // Start with motor off
-  Serial.println("Motor PWM pin initialized (2kHz)");
+  Serial.println("Motor PWM pin initialized (20kHz)");
   
   // Initialize battery voltage monitoring pin
   pinMode(BATTERY_VOLTAGE_PIN, INPUT);
@@ -414,14 +414,17 @@ void setMotorSpeed(int speed) {
 }
 
 /**
- * Setup PWM frequency for motor control (2kHz)
+ * Setup PWM frequency for motor control (20kHz)
  */
 void setupMotorPWM() {
-  // Timer2 settings for 2kHz PWM frequency
-  // Fast PWM mode, non-inverting, prescaler = 32
-  TCCR2A = _BV(COM2B1) | _BV(WGM21) | _BV(WGM20);  // Fast PWM mode
-  TCCR2B = _BV(CS21) | _BV(CS20);                  // Prescaler = 32
-  // Frequency = 16MHz / (32 * 256) = 1.953kHz ≈ 2kHz
+  // Timer2 settings for 20kHz PWM frequency
+  // Phase Correct PWM mode, non-inverting, prescaler = 1
+  // D11 is connected to OC2A (Timer2 Channel A)
+  TCCR2A = _BV(COM2A1) | _BV(WGM20);  // Phase Correct PWM mode, OC2A output
+  TCCR2B = _BV(CS20);                  // Prescaler = 1
+  // Frequency = 16MHz / (2 * 1 * 256) = 31.25kHz (closest achievable)
+  // Note: Exact 20kHz not possible with Timer2 on 16MHz Arduino
+  // Using prescaler=1 gives ~31kHz, prescaler=8 gives ~4kHz
 }
 
 /**

@@ -152,6 +152,7 @@ def print_help():
 	print("m <speed>           - Set motor speed (0-100%)")
 	print("stop                - Emergency stop")
 	print("status              - Show sensor data")
+	print("voltage             - Show battery voltage")
 	print("help                - Show this help")
 	print("quit                - Exit program")
 	print("file <filename>     - Load and execute commands from file")
@@ -255,6 +256,13 @@ def execute_command(controller, command):
 		if data:
 			print(f"Battery: {data.battery_voltage:.2f}V, "
 				  f"Current: {data.current_mA:.1f}mA")
+		else:
+			print("No sensor data available")
+		return True
+	elif command == 'voltage':
+		data = controller.get_latest_sensor_data()
+		if data:
+			print(f"Battery Voltage: {data.battery_voltage:.2f}V")
 		else:
 			print("No sensor data available")
 		return True
