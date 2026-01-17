@@ -86,16 +86,22 @@ class MenuSelector:
         self.display.display_menu(labels, self.selected_index)
     
     def _move_up(self):
-        """選択を上に移動"""
+        """選択を上に移動（循環）"""
         if self.selected_index > 0:
             self.selected_index -= 1
-            self._render_menu()
+        else:
+            # 一番上から一番下へ
+            self.selected_index = len(self.current_menu) - 1
+        self._render_menu()
     
     def _move_down(self):
-        """選択を下に移動"""
+        """選択を下に移動（循環）"""
         if self.selected_index < len(self.current_menu) - 1:
             self.selected_index += 1
-            self._render_menu()
+        else:
+            # 一番下から一番上へ
+            self.selected_index = 0
+        self._render_menu()
     
     def _select_item(self):
         """現在の選択項目を決定"""
@@ -110,19 +116,18 @@ class MenuSelector:
         # アクションがある場合
         elif item.has_action():
             result = item.action()
-            # Exitの場合のみ終了
-            if result == "exit":
+            # 特別な結果が返された場合は終了
+            if result in ("exit", "power_off_yes"):
                 self.result = result
                 self.running = False
+            elif result is None and self.menu_stack:
+                # Noneが返された場合、サブメニュー内なら親メニューに戻る
+                self._go_back()
             else:
-                # それ以外は選択したメニュー名を表示して戻る
-                self.display.display_text(item.label, align="center")
-                time.sleep(1)
+                # それ以外はメニューを再描画
                 self._render_menu()
         else:
-            # 何もない場合は選択されたアイテム名を表示して戻る
-            self.display.display_text(item.label, align="center")
-            time.sleep(1)
+            # 何もない場合はメニューを再描画
             self._render_menu()
     
     def _enter_submenu(self, submenu):
