@@ -261,6 +261,37 @@ class ArmBoardController:
         speed = max(1, min(180, speed))  # 1-180に制限
         return self._send_command(f"S2S{speed:03d}")
     
+    def detach_servo1(self) -> bool:
+        """
+        サーボ1を脱力状態にする（電源OFF）
+        
+        Returns:
+            送信成功の場合True
+        """
+        return self._send_command("S1D")
+    
+    def detach_servo2(self) -> bool:
+        """
+        サーボ2を脱力状態にする（電源OFF）
+        
+        Returns:
+            送信成功の場合True
+        """
+        return self._send_command("S2D")
+    
+    def set_servo2_speed(self, speed: int) -> bool:
+        """
+        サーボ2のデフォルト速度を設定
+        
+        Args:
+            speed: デフォルト速度 (1-180 degrees/sec)
+            
+        Returns:
+            送信成功の場合True
+        """
+        speed = max(1, min(180, speed))  # 1-180に制限
+        return self._send_command(f"S2S{speed:03d}")
+    
     def set_motor_speed(self, speed: int) -> bool:
         """
         モータ速度を設定

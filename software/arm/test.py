@@ -149,6 +149,8 @@ def print_help():
 	print("s2s <angle> <speed> - Set servo2 angle with speed control")
 	print("                      angle: 0-180 degrees") 
 	print("                      speed: 1-180 degrees/sec")
+	print("s1d                 - Detach servo1 (power off, relaxed state)")
+	print("s2d                 - Detach servo2 (power off, relaxed state)")
 	print("m <speed>           - Set motor speed (0-100%)")
 	print("stop                - Emergency stop")
 	print("status              - Show sensor data")
@@ -247,6 +249,14 @@ def execute_command(controller, command):
 		except (ValueError, IndexError):
 			print("Usage: m <speed>")
 			return False
+	elif command == 's1d':
+		controller.detach_servo1()
+		print("Servo1 detached (power off)")
+		return True
+	elif command == 's2d':
+		controller.detach_servo2()
+		print("Servo2 detached (power off)")
+		return True
 	elif command == 'stop':
 		controller.emergency_stop()
 		print("Emergency stop activated")

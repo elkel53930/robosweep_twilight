@@ -11,7 +11,13 @@
 #include <Wire.h>
 #include <Servo.h>
 #include <Adafruit_INA219.h>
+#include <Adafruit_NeoPixel.h>
 
+#define LED_SIG (6)
+#define NUM_OF_LED (1)
+
+// NeoPixel object
+Adafruit_NeoPixel pixels(NUM_OF_LED, LED_SIG, NEO_GRB + NEO_KHZ800);
 // Pin definitions
 #define SERVO1_PIN 8
 #define SERVO2_PIN 9
@@ -58,14 +64,9 @@ void setup() {
   Serial.begin(115200);
   Serial.println("Arduino Nano Arm Board Initializing...");
   
-  // Initialize servo motors
-  servo1.attach(SERVO1_PIN);
-  servo2.attach(SERVO2_PIN);
-  
-  // Set servos to default positions
-  servo1.write(DEFAULT_SERVO1_ANGLE);
-  servo2.write(DEFAULT_SERVO2_ANGLE);
-  Serial.println("Servos initialized");
+  // Initialize servo motors in detached state (no power)
+  // Servos will be attached when first command is received
+  Serial.println("Servos initialized (detached state)");
   
   // Initialize PWM motor pin
   pinMode(MOTOR_PWM_PIN, OUTPUT);
@@ -121,12 +122,37 @@ void loop() {
   
   // Read sensor values
   readBatteryVoltage();
+
   readCurrentSensor();
   
   // Send sensor data every 100ms
   if (millis() - lastSensorSend >= SENSOR_SEND_INTERVAL) {
     sendSensorData();
     lastSensorSend = millis();
+  }
+
+  if (batteryVoltage > 8.7)
+  {
+    pixels.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
+    pixels.setPixelColor(0, pixels.Color(0, 0, 20)); // Blue color
+    pixels.show(); // Send the updated pixel colors to the hardware.
+  }
+  else if (batteryVoltage > 7.4)
+  {
+    pixels.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
+    pixels.setPixelColor(0, pixels.Color(0, 20, 0)); // Green color
+    pixels.show(); // Send the updated pixel colors to the hardware.
+  }
+  else if (batteryVoltage > 6.5)
+  {
+    pixels.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
+    pixels.setPixelColor(0, pixels.Color(20, 20, 0)); //Yello color
+    pixels.show(); // Send the updated pixel colors to the hardware.
+  }else
+  {
+    pixels.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
+    pixels.setPixelColor(0, pixels.Color(20, 0, 0)); // Red color
+    pixels.show(); // Send the updated pixel colors to the hardware.
   }
   
   // Small delay for stability (using empty loop instead of delay)
@@ -152,8 +178,8 @@ void serialEvent() {
 
 /**
  * Process incoming commands
- * Commands: S1<angle> S2<angle> M<speed> S1S<speed> S2S<speed> S1A<angle>,<speed> S2A<angle>,<speed>
- * Examples: S1090, S2180, M050, S1S030, S2S060, S1A090,030, S2A045,060
+ * Commands: S1<angle> S2<angle> M<speed> S1S<speed> S2S<speed> S1A<angle>,<speed> S2A<angle>,<speed> S1D S2D
+ * Examples: S1090, S2180, M050, S1S030, S2S060, S1A090,030, S2A045,060, S1D, S2D
  */
 void processCommand(String command) {
   command.trim();
@@ -197,6 +223,16 @@ void processCommand(String command) {
     int speed = command.substring(3).toInt();
     setServo2Speed(speed);
     Serial.println("OK:S2S:" + String(speed));
+  }
+  else if (command == "S1D") {
+    // S1D - Detach servo1 (power off)
+    servo1.detach();
+    Serial.println("OK:S1D");
+  }
+  else if (command == "S2D") {
+    // S2D - Detach servo2 (power off)
+    servo2.detach();
+    Serial.println("OK:S2D");
   }
   else if (command.startsWith("S1")) {
     int angle = command.substring(2).toInt();
@@ -332,6 +368,9 @@ void setServo1Angle(int angle) {
   angle = constrain(angle, 0, 180);
   servo1_current_angle = (float)angle;
   servo1_target_angle = (float)angle;
+  if (!servo1.attached()) {
+    servo1.attach(SERVO1_PIN);
+  }
   servo1.write(angle);
 }
 
@@ -343,6 +382,9 @@ void setServo2Angle(int angle) {
   angle = constrain(angle, 0, 180);
   servo2_current_angle = (float)angle;
   servo2_target_angle = (float)angle;
+  if (!servo2.attached()) {
+    servo2.attach(SERVO2_PIN);
+  }
   servo2.write(angle);
 }
 
