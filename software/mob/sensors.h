@@ -58,7 +58,7 @@ private:
     static constexpr float WHEEL_DIAMETER = 23.4f;     // ホイール直径（mm）
     static constexpr float GEAR_RATIO = 41.0f / 20.0f; // エンコーダ:ホイールのギア比
     static constexpr float ENCODER_RESOLUTION = 16384.0f; // エンコーダ分解能（14bit）
-    static constexpr float WHEEL_BASE = 50.0f;         // 車輪間距離（mm）※要調整
+    static constexpr float WHEEL_BASE = 76.0f;         // 車輪間距離（mm）
     static constexpr float SAMPLE_TIME = 0.001f;       // サンプリング周期（秒）= 1ms
     
     // エンコーダカウントから移動距離への変換係数（mm/count）
