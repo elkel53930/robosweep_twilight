@@ -11,7 +11,7 @@ WallSensor::WallSensor(ADC& adc) : adc_(adc) {
 	digitalWrite(LS_EN, LOW);
 	digitalWrite(RF_EN, LOW);
 	digitalWrite(RS_EN, LOW);
-	enabled_ = true;
+	enabled_ = false;
 }
 
 void WallSensor::set_enabled(bool enabled) {
