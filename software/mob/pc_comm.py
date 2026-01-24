@@ -47,7 +47,7 @@ except ImportError as e:
 
 @dataclass
 class SenFrame:
-    gyro_dps: float
+    gyro_radps: float
     vbatt: float
     lf: int
     ls: int
@@ -56,7 +56,7 @@ class SenFrame:
     enc_r: int
     enc_l: int
     odo_dist_mm: float
-    odo_ang_deg: float
+    odo_ang_rad: float
     ts: float
 
 
@@ -66,7 +66,7 @@ def parse_sen_line(line: str) -> Optional[SenFrame]:
         return None
     try:
         return SenFrame(
-            gyro_dps=float(parts[1]),
+            gyro_radps=float(parts[1]),
             vbatt=float(parts[2]),
             lf=int(parts[3]),
             ls=int(parts[4]),
@@ -75,7 +75,7 @@ def parse_sen_line(line: str) -> Optional[SenFrame]:
             enc_r=int(parts[7]),
             enc_l=int(parts[8]),
             odo_dist_mm=float(parts[9]),
-            odo_ang_deg=float(parts[10]),
+            odo_ang_rad=float(parts[10]),
             ts=time.time(),
         )
     except ValueError:
@@ -322,10 +322,10 @@ def draw(stdscr, client: SerialClient) -> int:
             sen_lines = ["SEN: (waiting...)" ]
         else:
             sen_lines = [
-                f"SEN age={fmt_age_ms(sen.ts)}  gyro_z={sen.gyro_dps:.2f} dps  vbatt={sen.vbatt:.2f} V",
+                f"SEN age={fmt_age_ms(sen.ts)}  gyro_z={sen.gyro_radps:.3f} rad/s  vbatt={sen.vbatt:.2f} V",
                 f"wall lf/ls/rs/rf = {sen.lf}/{sen.ls}/{sen.rs}/{sen.rf}",
                 f"enc  r/l = {sen.enc_r}/{sen.enc_l}",
-                f"odo  dist={sen.odo_dist_mm:.2f} mm  ang={sen.odo_ang_deg:.2f} deg",
+                f"odo  dist={sen.odo_dist_mm:.2f} mm  ang={sen.odo_ang_rad:.3f} rad",
             ]
         for i, line in enumerate(sen_lines, start=3):
             if i >= h - 1:

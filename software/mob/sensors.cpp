@@ -7,11 +7,11 @@ Sensors::Sensors(IMU& imu, WallSensor& wall_sensor, ADC& adc, Encoder& encoder)
       distance_(0.0f), angle_(0.0f), prev_right_angle_(0), prev_left_angle_(0) {
 }
 
-void Sensors::update() {
+void Sensors::update(uint32_t time_delta_ms) {
     // IMUデータの読み取り
     int16_t raw_gyro_z = imu_.read_gyro_z();
-    float gyro_z_dps = imu_.convert_gyro_z_to_dps(raw_gyro_z);
-    gyro_z_.store(gyro_z_dps, std::memory_order_relaxed);
+    float gyro_z_radps = imu_.convert_gyro_z_to_radps(raw_gyro_z);
+    gyro_z_.store(gyro_z_radps, std::memory_order_relaxed);
     
     // 壁センサー値の読み取り
     uint16_t lf_value = wall_sensor_.lf();
@@ -55,12 +55,14 @@ void Sensors::update() {
     float distance_l = delta_l * COUNT_TO_MM;
     float delta_distance = (distance_r + distance_l) / 2.0f;
     
-    // 角度計算（ジャイロ積分 + エンコーダ推定の相補フィルタ）
-    float delta_angle_gyro = gyro_z_dps * SAMPLE_TIME; // ジャイロ積分
-    float delta_angle_encoder = (distance_r - distance_l) / WHEEL_BASE * 57.2957795f; // エンコーダ（度）
+    // 角度計算（rad）
+    // ジャイロ積分（rad/s * s = rad）
+    float delta_angle_gyro = gyro_z_radps * (static_cast<float>(time_delta_ms) / 1000.0f);
+    // エンコーダ推定: (dr - dl)/wheel_base は幾何学的にラジアン
+    float delta_angle_encoder = (distance_r - distance_l) / WHEEL_BASE;
     
-    // 相補フィルタ（ジャイロ重視）
-    float delta_angle = 0.98f * delta_angle_gyro + 0.02f * delta_angle_encoder;
+    // 相補フィルタ（現在はエンコーダのみに寄せている）
+    float delta_angle = /*0.98f * delta_angle_gyro + 0.02f * */ delta_angle_encoder;
     
     // 累積値更新
     distance_.store(distance_.load(std::memory_order_relaxed) + delta_distance, std::memory_order_relaxed);

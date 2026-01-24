@@ -13,10 +13,10 @@ public:
     Sensors(IMU& imu, WallSensor& wall_sensor, ADC& adc, Encoder& encoder);
     
     // Core0から呼び出される関数: センサー値を読み取ってatomic変数に格納
-    void update();
+    void update(uint32_t time_delta_ms);
     
     // Core1のloop()から呼び出される関数: 格納された値を読み出す
-    float get_gyro_z() const;           // Z軸ジャイロ角速度（度/秒）
+    float get_gyro_z() const;           // Z軸ジャイロ角速度（rad/s）
     uint16_t get_lf() const;            // 左前壁センサー値
     uint16_t get_rf() const;            // 右前壁センサー値
     uint16_t get_ls() const;            // 左側壁センサー値
@@ -27,7 +27,7 @@ public:
     
     // オドメトリ関連
     float get_distance() const;              // 移動距離（mm）
-    float get_angle() const;                 // 姿勢角度（度）
+    float get_angle() const;                 // 姿勢角度（rad）
     void reset_distance();                   // 距離リセット
     void reset_angle();                      // 角度リセット
     
@@ -39,7 +39,7 @@ private:
     Encoder& encoder_;
     
     // Atomic変数でセンサーデータを保持
-    std::atomic<float> gyro_z_;         // Z軸ジャイロ角速度（度/秒）
+    std::atomic<float> gyro_z_;         // Z軸ジャイロ角速度（rad/s）
     std::atomic<uint16_t> lf_;          // 左前壁センサー値
     std::atomic<uint16_t> rf_;          // 右前壁センサー値
     std::atomic<uint16_t> ls_;          // 左側壁センサー値
@@ -50,7 +50,7 @@ private:
     
     // オドメトリ用変数
     std::atomic<float> distance_;       // 累積移動距離（mm）
-    std::atomic<float> angle_;          // 累積姿勢角度（度）
+    std::atomic<float> angle_;          // 累積姿勢角度（rad）
     uint16_t prev_right_angle_;         // 前回の右エンコーダ値
     uint16_t prev_left_angle_;          // 前回の左エンコーダ値
     
@@ -59,8 +59,7 @@ private:
     static constexpr float GEAR_RATIO = 41.0f / 20.0f; // エンコーダ:ホイールのギア比
     static constexpr float ENCODER_RESOLUTION = 16384.0f; // エンコーダ分解能（14bit）
     static constexpr float WHEEL_BASE = 76.0f;         // 車輪間距離（mm）
-    static constexpr float SAMPLE_TIME = 0.001f;       // サンプリング周期（秒）= 1ms
-    
+ 
     // エンコーダカウントから移動距離への変換係数（mm/count）
     static constexpr float COUNT_TO_MM = (WHEEL_DIAMETER * 3.14159265359f) / (ENCODER_RESOLUTION * GEAR_RATIO);
 };
