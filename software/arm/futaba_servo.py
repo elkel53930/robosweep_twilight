@@ -170,22 +170,32 @@ def main():
         
         # +90度へ移動
         print("角度: +90.0度へ移動")
-        servo.set_position(servo_id, 90.0, move_time=1000)
+        servo.set_position(servo_id, 90.0, move_time=100)
         time.sleep(1.5)
         
         # 0度へ移動
         print("角度: 0.0度へ移動")
-        servo.set_position(servo_id, 0.0, move_time=1000)
+        servo.set_position(servo_id, 0.0, move_time=100)
         time.sleep(1.5)
         
         # -90度へ移動
         print("角度: -90.0度へ移動")
-        servo.set_position(servo_id, -90.0, move_time=1000)
+        servo.set_position(servo_id, -90.0, move_time=100)
         time.sleep(1.5)
         
         # 0度へ戻る
         print("角度: 0.0度へ移動")
-        servo.set_position(servo_id, 0.0, move_time=1000)
+        servo.set_position(servo_id, 0.0, move_time=100)
+        time.sleep(1.5)
+        
+        # -90度へ移動
+        print("角度: -90.0度へ移動")
+        servo.set_position(servo_id, -90.0, move_time=100)
+        time.sleep(1.5)
+        
+        # -90度へ移動
+        print("角度: -90.0度へ移動")
+        servo.set_position(servo_id, 90.0, move_time=100)
         time.sleep(1.5)
         
         # トルクOFF
