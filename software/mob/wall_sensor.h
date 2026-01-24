@@ -11,8 +11,13 @@ public:
 	uint16_t rf();
 	uint16_t ls();
 	uint16_t rs();
+	
+	// 壁センサ用LEDの有効/無効（消費電力対策）
+	void set_enabled(bool enabled);
+	bool is_enabled() const;
 private:
 	ADC& adc_;
+	bool enabled_ = true;
 
 	// 定数
 	static constexpr uint16_t LF_EN = 6;

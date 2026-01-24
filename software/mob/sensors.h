@@ -25,6 +25,12 @@ public:
     uint16_t get_right_wheel_angle() const;  // 右車輪角度（生値: 0-16383）
     uint16_t get_left_wheel_angle() const;   // 左車輪角度（生値: 0-16383）
     
+    // オドメトリ関連
+    float get_distance() const;              // 移動距離（mm）
+    float get_angle() const;                 // 姿勢角度（度）
+    void reset_distance();                   // 距離リセット
+    void reset_angle();                      // 角度リセット
+    
 private:
     // センサーへの参照
     IMU& imu_;
@@ -41,6 +47,22 @@ private:
     std::atomic<float> battery_voltage_; // バッテリー電圧
     std::atomic<uint16_t> right_wheel_angle_; // 右車輪角度（生値: 0-16383）
     std::atomic<uint16_t> left_wheel_angle_;  // 左車輪角度（生値: 0-16383）
+    
+    // オドメトリ用変数
+    std::atomic<float> distance_;       // 累積移動距離（mm）
+    std::atomic<float> angle_;          // 累積姿勢角度（度）
+    uint16_t prev_right_angle_;         // 前回の右エンコーダ値
+    uint16_t prev_left_angle_;          // 前回の左エンコーダ値
+    
+    // ロボット物理パラメータ
+    static constexpr float WHEEL_DIAMETER = 23.4f;     // ホイール直径（mm）
+    static constexpr float GEAR_RATIO = 41.0f / 20.0f; // エンコーダ:ホイールのギア比
+    static constexpr float ENCODER_RESOLUTION = 16384.0f; // エンコーダ分解能（14bit）
+    static constexpr float WHEEL_BASE = 50.0f;         // 車輪間距離（mm）※要調整
+    static constexpr float SAMPLE_TIME = 0.001f;       // サンプリング周期（秒）= 1ms
+    
+    // エンコーダカウントから移動距離への変換係数（mm/count）
+    static constexpr float COUNT_TO_MM = (WHEEL_DIAMETER * 3.14159265359f) / (ENCODER_RESOLUTION * GEAR_RATIO);
 };
 
 #endif

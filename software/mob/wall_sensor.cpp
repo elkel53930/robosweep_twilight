@@ -11,9 +11,26 @@ WallSensor::WallSensor(ADC& adc) : adc_(adc) {
 	digitalWrite(LS_EN, LOW);
 	digitalWrite(RF_EN, LOW);
 	digitalWrite(RS_EN, LOW);
+	enabled_ = true;
+}
+
+void WallSensor::set_enabled(bool enabled) {
+	enabled_ = enabled;
+	// 無効化時は確実にOFF
+	if (!enabled_) {
+		digitalWrite(LF_EN, LOW);
+		digitalWrite(LS_EN, LOW);
+		digitalWrite(RF_EN, LOW);
+		digitalWrite(RS_EN, LOW);
+	}
+}
+
+bool WallSensor::is_enabled() const {
+	return enabled_;
 }
 
 uint16_t WallSensor::lf() {
+	if (!enabled_) return 0;
 	uint16_t off;
 	adc_.lf_read(off);
 	digitalWrite(LF_EN, HIGH);
@@ -25,6 +42,7 @@ uint16_t WallSensor::lf() {
 }
 
 uint16_t WallSensor::rf() {
+	if (!enabled_) return 0;
 	uint16_t off;
 	adc_.rf_read(off);
 	digitalWrite(RF_EN, HIGH);
@@ -36,6 +54,7 @@ uint16_t WallSensor::rf() {
 }
 
 uint16_t WallSensor::ls() {
+	if (!enabled_) return 0;
 	uint16_t off;
 	adc_.ls_read(off);
 	digitalWrite(LS_EN, HIGH);
@@ -47,6 +66,7 @@ uint16_t WallSensor::ls() {
 }
 
 uint16_t WallSensor::rs() {
+	if (!enabled_) return 0;
 	uint16_t off;
 	adc_.rs_read(off);
 	digitalWrite(RS_EN, HIGH);

@@ -3,7 +3,8 @@
 Sensors::Sensors(IMU& imu, WallSensor& wall_sensor, ADC& adc, Encoder& encoder)
     : imu_(imu), wall_sensor_(wall_sensor), adc_(adc), encoder_(encoder),
       gyro_z_(0.0f), lf_(0), rf_(0), ls_(0), rs_(0),
-      battery_voltage_(0.0f), right_wheel_angle_(0), left_wheel_angle_(0) {
+      battery_voltage_(0.0f), right_wheel_angle_(0), left_wheel_angle_(0),
+      distance_(0.0f), angle_(0.0f), prev_right_angle_(0), prev_left_angle_(0) {
 }
 
 void Sensors::update() {
@@ -32,6 +33,42 @@ void Sensors::update() {
     uint16_t l_angle = encoder_.read_left_angle();
     right_wheel_angle_.store(r_angle, std::memory_order_relaxed);
     left_wheel_angle_.store(l_angle, std::memory_order_relaxed);
+    
+    // オドメトリ計算
+    // エンコーダの差分計算（オーバーフロー対応: 14bit 0..16383）
+    // 注意: uint16_tのまま差分を取ると境界跨ぎで巨大な差分になるため、
+    // 14bit空間で正規化してから signed に折り返す。
+    auto calc_delta_14bit = [](uint16_t now, uint16_t prev) -> int16_t {
+        // 0..16383 の循環差分（0..16383）
+        int32_t d = static_cast<int32_t>(now) - static_cast<int32_t>(prev);
+        d = (d % 16384 + 16384) % 16384; // 正の mod
+        // 最短方向に折り返し（-8192..+8191）
+        if (d > 8192) d -= 16384;
+        return static_cast<int16_t>(d);
+    };
+
+    int16_t delta_r = calc_delta_14bit(r_angle, prev_right_angle_);
+    int16_t delta_l = calc_delta_14bit(l_angle, prev_left_angle_);
+    
+    // 移動距離計算（mm）
+    float distance_r = -1 * delta_r * COUNT_TO_MM; // 右車輪は逆転方向が正
+    float distance_l = delta_l * COUNT_TO_MM;
+    float delta_distance = (distance_r + distance_l) / 2.0f;
+    
+    // 角度計算（ジャイロ積分 + エンコーダ推定の相補フィルタ）
+    float delta_angle_gyro = gyro_z_dps * SAMPLE_TIME; // ジャイロ積分
+    float delta_angle_encoder = (distance_r - distance_l) / WHEEL_BASE * 57.2957795f; // エンコーダ（度）
+    
+    // 相補フィルタ（ジャイロ重視）
+    float delta_angle = 0.98f * delta_angle_gyro + 0.02f * delta_angle_encoder;
+    
+    // 累積値更新
+    distance_.store(distance_.load(std::memory_order_relaxed) + delta_distance, std::memory_order_relaxed);
+    angle_.store(angle_.load(std::memory_order_relaxed) + delta_angle, std::memory_order_relaxed);
+    
+    // 前回値更新
+    prev_right_angle_ = r_angle;
+    prev_left_angle_ = l_angle;
 }
 
 float Sensors::get_gyro_z() const {
@@ -64,4 +101,20 @@ uint16_t Sensors::get_right_wheel_angle() const {
 
 uint16_t Sensors::get_left_wheel_angle() const {
     return left_wheel_angle_.load(std::memory_order_relaxed);
+}
+
+float Sensors::get_distance() const {
+    return distance_.load(std::memory_order_relaxed);
+}
+
+float Sensors::get_angle() const {
+    return angle_.load(std::memory_order_relaxed);
+}
+
+void Sensors::reset_distance() {
+    distance_.store(0.0f, std::memory_order_relaxed);
+}
+
+void Sensors::reset_angle() {
+    angle_.store(0.0f, std::memory_order_relaxed);
 }

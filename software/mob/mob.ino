@@ -101,7 +101,7 @@ void setup() {
     // コマンドキューの作成
     cmd_queue = xQueueCreate(10, sizeof(SetMotorSpeedCommand));
     if (cmd_queue == NULL) {
-        Serial.println("Failed to create command queue!");
+        Serial.printf("#Failed to create command queue!\n");
         while(1);
     }
 
@@ -117,12 +117,12 @@ void setup() {
     );
     
     if (result != pdPASS) {
-        Serial.println("Failed to create Core0 task!");
+        Serial.println("#Failed to create Core0 task!\n");
         while(1);
     }
     
-    Serial.println("Core 0 realtime task started");
-    Serial.println("System ready");
+    Serial.printf("#Core 0 realtime task started\n");
+    Serial.printf("#System ready\n");
 }
  
 // Core1のループ関数
@@ -140,9 +140,11 @@ void loop() {
         uint16_t rf = sensors.get_rf();
         uint16_t enc_r = sensors.get_right_wheel_angle();
         uint16_t enc_l = sensors.get_left_wheel_angle();
+        float odo_dist = sensors.get_distance();
+        float odo_ang = sensors.get_angle();
         
-        Serial.printf("SEN,%.2f,%.2f,%u,%u,%u,%u,%u,%u\n",
-                      gyro, vbatt, lf, ls, rs, rf, enc_r, enc_l);
+        Serial.printf("SEN,%.2f,%.2f,%u,%u,%u,%u,%u,%u,%.2f,%.2f\n",
+                      gyro, vbatt, lf, ls, rs, rf, enc_r, enc_l, odo_dist, odo_ang);
     }
     
     // UARTコマンド受信例
@@ -150,21 +152,36 @@ void loop() {
         // e.g. "MOT,100,100\n"
         String cmd = Serial.readStringUntil('\n');
         cmd.trim();
-        
+
         if (cmd.startsWith("MOT")) {
             // モーター速度設定: MOT,100,100
-            int comma = cmd.indexOf(',');
-            if (comma > 0) {
+            // 期待フォーマット: "MOT,<right_speed>,<left_speed>"
+            int comma1 = cmd.indexOf(',');
+            int comma2 = (comma1 >= 0) ? cmd.indexOf(',', comma1 + 1) : -1;
+            if (comma1 > 0 && comma2 > comma1) {
                 SetMotorSpeedCommand motor_cmd;
-                motor_cmd.right_speed = cmd.substring(1, comma).toInt();
-                motor_cmd.left_speed = cmd.substring(comma + 1).toInt();
-                
+                motor_cmd.right_speed = cmd.substring(comma1 + 1, comma2).toInt();
+                motor_cmd.left_speed = cmd.substring(comma2 + 1).toInt();
+
                 if (xQueueSend(cmd_queue, &motor_cmd, pdMS_TO_TICKS(10)) == pdTRUE) {
-                    Serial.printf("Motor: R=%d, L=%d\n", 
+                    Serial.printf("#Motor: R=%d, L=%d\n",
                                   motor_cmd.right_speed, motor_cmd.left_speed);
                 } else {
-                    Serial.println("Queue full!");
+                    Serial.printf("#Queue full!\n");
                 }
+            } else {
+                Serial.printf("#Invalid MOT format\n");
+            }
+        } else if (cmd.startsWith("WALL")) {
+            // 壁センサLEDの有効/無効: WALL,1 または WALL,0
+            int comma1 = cmd.indexOf(',');
+            if (comma1 > 0) {
+                int en = cmd.substring(comma1 + 1).toInt();
+                bool enabled = (en != 0);
+                wall_sensor.set_enabled(enabled);
+                Serial.printf("#WallSensor enabled=%d\n", enabled ? 1 : 0);
+            } else {
+                Serial.printf("#Invalid WALL format\n");
             }
         }
     }
