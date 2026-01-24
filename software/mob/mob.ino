@@ -35,6 +35,26 @@ static float stop_cruise_mmps = 0.0f;     // STOP引数speed_mmps（巡航速度
 
 static constexpr float FINAL_APPROACH_SPEED_MMPS = 50.0f;  // STOP時の最終進入速度
 
+// 旋回コマンド（その場旋回）状態
+static bool turn_active = false;
+static float turn_target_rad = 0.0f;
+static float turn_start_angle_rad = 0.0f;
+static float turn_goal_angle_rad = 0.0f;
+static float turn_speed_cmd_mps = 0.0f; // 指令速度（加減速制限後）
+
+// 角度制御パラメータ（簡易P + 速度制限）
+static constexpr float TURN_KP_MPS_PER_RAD = 0.35f;   // [m/s]/rad
+static constexpr float TURN_MAX_SPEED_MPS = 0.25f;
+static constexpr float TURN_MIN_SPEED_MPS = 0.08f;
+static constexpr float TURN_DONE_TOL_RAD = 0.03f;     // 約1.7deg
+static constexpr float TURN_ACCEL_MPS2 = 1.2f;        // 旋回時の車輪速度加速度制限 [m/s^2]
+
+static inline float slew_rate_limit(float current, float target, float max_delta) {
+    if (target > current + max_delta) return current + max_delta;
+    if (target < current - max_delta) return current - max_delta;
+    return target;
+}
+
 // グローバルなクラスは、上から順に初期化される
 ADC adc(get_shared_spi());
 LED led;
@@ -75,6 +95,7 @@ enum CommandID : uint8_t {
     CMD_STOP = 0x05,
     CMD_RESET_DISTANCE = 0x06,
     CMD_RESET_ANGLE = 0x07,
+    CMD_TURN = 0x08,
 };
 
 struct Command {
@@ -83,6 +104,7 @@ struct Command {
         SetMotorSpeedCommand set_motor_speed;
         ForwardCommand forward;
         StopCommand stop;
+        float turn_target_rad;
     } parameter;
 };
 
@@ -196,6 +218,22 @@ void Core0RealtimeTask(void* parameter) {
             } else if (q.cmd_id == CMD_RESET_ANGLE) {
                 sensors.reset_angle();
                 enqueue_msg_line("#angle reset\n");
+            } else if (q.cmd_id == CMD_TURN) {
+                // TURN: その場旋回（角度のみ）
+                turn_active = true;
+                turn_target_rad = q.parameter.turn_target_rad;
+
+                // 競合回避: ほかのプロファイルを停止
+                fwd_active = false;
+                stop_active = false;
+
+                // 角度制御の基準を確定
+                turn_start_angle_rad = sensors.get_angle();
+                turn_goal_angle_rad = turn_start_angle_rad + turn_target_rad;
+                turn_speed_cmd_mps = 0.0f;
+
+                // 回り始めは MotionController の内部turn状態を新規にするため stop() しておく
+                motion.stop();
             }
         }
 
@@ -294,6 +332,37 @@ void Core0RealtimeTask(void* parameter) {
                 } else {
                     motion.forward(v_cmd_mps, 0.0f);
                 }
+            }
+        }
+
+        // TURN 更新: 角度制御 + 加減速制限で停止しDONE
+        if (turn_active) {
+            const float now_ang = sensors.get_angle();
+            const float err = turn_goal_angle_rad - now_ang;   // +: 左回り目標が残っている
+
+            if (fabsf(err) <= TURN_DONE_TOL_RAD) {
+                turn_active = false;
+                turn_speed_cmd_mps = 0.0f;
+                target_vr_mps = 0.0f;
+                target_vl_mps = 0.0f;
+                motion.stop();
+                enqueue_msg_line("DONE\n");
+            } else {
+                // P制御で「理想速度」を作る（残角が小さいほど遅く）
+                float v_target = TURN_KP_MPS_PER_RAD * fabsf(err);
+                if (v_target > TURN_MAX_SPEED_MPS) v_target = TURN_MAX_SPEED_MPS;
+                if (v_target < TURN_MIN_SPEED_MPS) v_target = TURN_MIN_SPEED_MPS;
+
+                // 加減速をなめらかにする（slew rate limit）
+                const float dv_max = TURN_ACCEL_MPS2 * dt_s;
+                turn_speed_cmd_mps = slew_rate_limit(turn_speed_cmd_mps, v_target, dv_max);
+
+                const float target_rel = err; // 現在から見た残り角度
+                (void)motion.turn_in_place(turn_speed_cmd_mps, target_rel);
+
+                // デバッグ用
+                target_vr_mps = (err >= 0.0f) ? +turn_speed_cmd_mps : -turn_speed_cmd_mps;
+                target_vl_mps = (err >= 0.0f) ? -turn_speed_cmd_mps : +turn_speed_cmd_mps;
             }
         }
 
@@ -473,6 +542,22 @@ void loop() {
                 }
             } else {
                 Serial.printf("#Invalid STOP format\n");
+            }
+        } else if (cmd.startsWith("TURN,")) {
+            // TURN: TURN,<angle_rad>
+            int comma1 = cmd.indexOf(',');
+            if (comma1 > 0) {
+                Command q;
+                q.cmd_id = CMD_TURN;
+                q.parameter.turn_target_rad = cmd.substring(comma1 + 1).toFloat();
+
+                if (xQueueSend(cmd_queue, &q, pdMS_TO_TICKS(10)) == pdTRUE) {
+                    Serial.printf("#TURN angle=%.4frad\n", q.parameter.turn_target_rad);
+                } else {
+                    Serial.printf("#Queue full!\n");
+                }
+            } else {
+                Serial.printf("#Invalid TURN format\n");
             }
         } else if (cmd == "RDST") {
             // 距離リセット（オドメトリ）

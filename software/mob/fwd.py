@@ -2,8 +2,8 @@
 """Send FWD then STOP to ESP32 and wait for DONE each time.
 
 This script sends:
-  1) FWD,300,1000,90\n then waits for a line exactly equal to "DONE"
-  2) STOP,300,1000,90\n then waits for a line exactly equal to "DONE"
+  1) FWD,400,1000,90\n then waits for a line exactly equal to "DONE"
+  2) STOP,400,1000,90\n then waits for a line exactly equal to "DONE"
 
 Notes:
 - Expects the firmware to output DONE as a standalone line ("DONE\n").
@@ -75,15 +75,23 @@ def main() -> int:
             ser.write(line.encode("ascii", errors="ignore"))
             print(f"TX: {line.strip()}")
 
-        send("RDST\n")
-        send("RANG\n")
-        send("FWD,300,2000,90\n")
-        wait_done(ser, args.timeout)
-        print("RX: DONE (FWD)")
+        for _ in range(4):
+            send("RDST\n")
+            send("RANG\n")
+            send("FWD,400,2000,90\n")
+            wait_done(ser, args.timeout)
+            print("RX: DONE (FWD)")
 
-        send("STOP,300,2000,90\n")
-        wait_done(ser, args.timeout)
-        print("RX: DONE (STOP)")
+            send("STOP,400,2000,90\n")
+            wait_done(ser, args.timeout)
+            print("RX: DONE (STOP)")
+
+            # send("RANG\n")
+            send("TURN,-1.53\n")
+            wait_done(ser, args.timeout)
+            print("RX: DONE (TURN)")
+
+            time.sleep(0.1)
 
         return 0
     finally:
