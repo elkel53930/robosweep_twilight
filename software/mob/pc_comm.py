@@ -384,10 +384,20 @@ def main() -> int:
 
     client = SerialClient(args.port, args.baud)
     client.start()
+    # Enable wall sensor LED on startup
+    try:
+        client.send_wall(True)
+    except Exception:
+        pass
 
     try:
         return curses.wrapper(draw, client)
     finally:
+        # Disable wall sensor LED on exit
+        try:
+            client.send_wall(False)
+        except Exception:
+            pass
         client.close()
 
 
