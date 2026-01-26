@@ -438,26 +438,7 @@ void loop() {
         }
     }
 
-    // センサーデータの読み取り例
-    static unsigned long last_print = 0;
-    if (millis() - last_print >= 100) {
-        last_print = millis();
-        
-        float gyro = sensors.get_gyro_z();      // rad/s
-        float vbatt = sensors.get_battery_voltage();
-        uint16_t lf = sensors.get_lf();
-        uint16_t ls = sensors.get_ls();
-        uint16_t rs = sensors.get_rs();
-        uint16_t rf = sensors.get_rf();
-        uint16_t enc_r = sensors.get_right_wheel_angle();
-        uint16_t enc_l = sensors.get_left_wheel_angle();
-        float odo_dist = sensors.get_distance();
-        float odo_ang = sensors.get_angle();    // rad
-        
-        // Note: gyro_z [rad/s], odo_ang [rad]
-        Serial.printf("SEN,%.2f,%.2f,%u,%u,%u,%u,%u,%u,%.2f,%.2f\n",
-                      gyro, vbatt, lf, ls, rs, rf, enc_r, enc_l, odo_dist, odo_ang);
-    }
+    // センサーデータ出力は周期送信を止め、PCからの要求に応答して送る方式に変更した
     
     // UARTコマンド受信例
     if (Serial.available()) {
@@ -577,6 +558,20 @@ void loop() {
             } else {
                 Serial.printf("#Queue full!\n");
             }
+        } else if (cmd == "SEN") {
+            // PCからの要求に応答して1行だけSENを送る
+            float gyro = sensors.get_gyro_z();      // rad/s
+            float vbatt = sensors.get_battery_voltage();
+            uint16_t lf = sensors.get_lf();
+            uint16_t ls = sensors.get_ls();
+            uint16_t rs = sensors.get_rs();
+            uint16_t rf = sensors.get_rf();
+            uint16_t enc_r = sensors.get_right_wheel_angle();
+            uint16_t enc_l = sensors.get_left_wheel_angle();
+            float odo_dist = sensors.get_distance();
+            float odo_ang = sensors.get_angle();    // rad
+            Serial.printf("SEN,%.2f,%.2f,%u,%u,%u,%u,%u,%u,%.2f,%.2f\n",
+                          gyro, vbatt, lf, ls, rs, rf, enc_r, enc_l, odo_dist, odo_ang);
         } else {
             // デバッグ用: 不明コマンド
             Serial.printf("#Unknown cmd: %s\n", cmd.c_str());

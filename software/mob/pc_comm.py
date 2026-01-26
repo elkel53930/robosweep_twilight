@@ -110,6 +110,12 @@ class SerialClient:
         line = f"MOT,{right},{left}\n"
         self.ser.write(line.encode('ascii', errors='ignore'))
 
+    def send_sen_request(self) -> None:
+        try:
+            self.ser.write(b"SEN\n")
+        except Exception as e:
+            self.msg_queue.put(f"#TX error: {e}")
+
     def send_wall(self, enabled: bool) -> None:
         line = f"WALL,{1 if enabled else 0}\n"
         self.ser.write(line.encode('ascii', errors='ignore'))
@@ -155,7 +161,7 @@ def clamp_i16(n: int) -> int:
 
 
 def fmt_age_ms(ts: float) -> str:
-    return f"{(time.time() - ts) * 1000.0:5.0f}ms"
+    return f""
 
 
 def draw(stdscr, client: SerialClient) -> int:
@@ -171,6 +177,7 @@ def draw(stdscr, client: SerialClient) -> int:
     mot_r = 0
     mot_l = 0
     last_tx = "-"
+    last_sen_req = 0.0
 
     # Command line input state
     cmd_mode = False
@@ -322,7 +329,7 @@ def draw(stdscr, client: SerialClient) -> int:
             sen_lines = ["SEN: (waiting...)" ]
         else:
             sen_lines = [
-                f"SEN age={fmt_age_ms(sen.ts)}  gyro_z={sen.gyro_radps:.3f} rad/s  vbatt={sen.vbatt:.2f} V",
+                f"SEN  gyro_z={sen.gyro_radps:.3f} rad/s  vbatt={sen.vbatt:.2f} V",
                 f"wall lf/ls/rs/rf = {sen.lf}/{sen.ls}/{sen.rs}/{sen.rf}",
                 f"enc  r/l = {sen.enc_r}/{sen.enc_l}",
                 f"odo  dist={sen.odo_dist_mm:.2f} mm  ang={sen.odo_ang_rad:.3f} rad",
@@ -331,6 +338,16 @@ def draw(stdscr, client: SerialClient) -> int:
             if i >= h - 1:
                 break
             stdscr.addnstr(i, 0, line, w - 1)
+
+        # Periodically request SEN from device every 0.5s
+        now_t = time.time()
+        if now_t - last_sen_req >= 0.5:
+            try:
+                client.send_sen_request()
+                last_sen_req = now_t
+                last_tx = "SEN"
+            except Exception as e:
+                push_log(f"#SEN TX error: {e}")
 
         # Control panel
         we = "?" if wall_enabled is None else ("ON" if wall_enabled else "OFF")
