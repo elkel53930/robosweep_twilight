@@ -38,7 +38,7 @@ uint16_t WallSensor::lf() {
 	uint16_t on;
 	adc_.lf_read(on);
 	digitalWrite(LF_EN, LOW);
-	return on - off;
+	return (on > off) ? (on - off) : 0;
 }
 
 uint16_t WallSensor::rf() {
@@ -50,7 +50,7 @@ uint16_t WallSensor::rf() {
 	uint16_t on;
 	adc_.rf_read(on);
 	digitalWrite(RF_EN, LOW);
-	return on - off;
+	return (on > off) ? (on - off) : 0;
 }
 
 uint16_t WallSensor::ls() {
@@ -62,7 +62,7 @@ uint16_t WallSensor::ls() {
 	uint16_t on;
 	adc_.ls_read(on);
 	digitalWrite(LS_EN, LOW);
-	return on - off;
+	return (on > off) ? (on - off) : 0;
 }
 
 uint16_t WallSensor::rs() {
@@ -74,5 +74,5 @@ uint16_t WallSensor::rs() {
 	uint16_t on;
 	adc_.rs_read(on);
 	digitalWrite(RS_EN, LOW);
-	return on - off;
+	return (on > off) ? (on - off) : 0;
 }
