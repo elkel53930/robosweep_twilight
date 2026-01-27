@@ -23,6 +23,7 @@ static float fwd_v_cmd_mmps = 0.0f;     // 現在指令速度 [mm/s]
 static float fwd_v_target_mmps = 0.0f;  // 目標巡航速度 [mm/s]
 static float fwd_a_mmps2 = 0.0f;        // 加速度 [mm/s^2]（符号付き）
 static float fwd_goal_dist_mm = 0.0f;   // 絶対目標距離 [mm]（Sensors::get_distance()基準）
+static float fwd_target_angle_rad = 0.0f; // 目標角度 [rad] （角度フィードバック用）
 static float cumulative_goal_dist_mm = 0.0f; // 累積目標距離 [mm]（RDSTでリセット）
 
 // 停止コマンド（減速して停止する）状態
@@ -31,6 +32,7 @@ static float stop_v_cmd_mmps = 0.0f;      // 現在指令速度 [mm/s]
 static float stop_v_target_mmps = 0.0f;   // 目標速度（通常 0）[mm/s]
 static float stop_a_mmps2 = 0.0f;         // 減速度 [mm/s^2]（負ではなく絶対値として扱う）
 static float stop_goal_dist_mm = 0.0f;    // 絶対目標距離 [mm]
+static float stop_target_angle_rad = 0.0f; // 目標角度 [rad] （角度フィードバック用）
 static float stop_cruise_mmps = 0.0f;     // STOP引数speed_mmps（巡航速度想定）[mm/s]
 
 static constexpr float FINAL_APPROACH_SPEED_MMPS = 50.0f;  // STOP時の最終進入速度
@@ -52,6 +54,9 @@ static constexpr float TURN_MAX_SPEED_MPS = 0.25f;
 static constexpr float TURN_MIN_SPEED_MPS = 0.08f;
 static constexpr float TURN_DONE_TOL_RAD = 0.03f;     // 約1.7deg
 static constexpr float TURN_ACCEL_MPS2 = 1.2f;        // 旋回時の車輪速度加速度制限 [m/s^2]
+
+// 直進時の角度フィードバックゲイン
+static constexpr float ANGLE_FB_GAIN = 0.5f;  // [m/s]/rad
 
 static inline float slew_rate_limit(float current, float target, float max_delta) {
     if (target > current + max_delta) return current + max_delta;
@@ -200,6 +205,9 @@ void handleForwardCommand(const ForwardCommand& cmd) {
     // 累積目標距離に追加（オーバーシュートの影響を受けない）
     cumulative_goal_dist_mm += cmd.distance_mm;
     fwd_goal_dist_mm = cumulative_goal_dist_mm;
+    
+    // 目標角度を現在の角度に設定（まっすぐ進む）
+    fwd_target_angle_rad = sensors.get_angle();
 
     // FWDコマンドの詳細情報を通知
     const float now_dist = sensors.get_distance();
@@ -234,6 +242,9 @@ void handleStopCommand(const StopCommand& cmd) {
     // 累積目標距離に追加（オーバーシュートの影響を受けない）
     cumulative_goal_dist_mm += cmd.distance_mm;
     stop_goal_dist_mm = cumulative_goal_dist_mm;
+    
+    // 目標角度を現在の角度に設定（まっすぐ進む）
+    stop_target_angle_rad = sensors.get_angle();
     
     // STOPコマンドの詳細情報を通知
     const float now_dist = sensors.get_distance();
@@ -344,9 +355,14 @@ void updateForward(float dt_s) {
 
         fwd_v_cmd_mmps = v_next;
         const float v_cmd_mps = fwd_v_cmd_mmps / 1000.0f;
+        
+        // 角度フィードバック: 現在角度と目標角度の差分
+        const float angle_error = sensors.get_angle() - fwd_target_angle_rad;
+        const float lateral_correction = ANGLE_FB_GAIN * angle_error;
+        
         target_vr_mps = v_cmd_mps;
         target_vl_mps = v_cmd_mps;
-        motion.forward(v_cmd_mps, 0.0f);
+        motion.forward(v_cmd_mps, lateral_correction);
     }
 }
 
@@ -404,12 +420,16 @@ void updateStop(float dt_s) {
         stop_v_cmd_mmps = v_next;
         const float v_cmd_mps = stop_v_cmd_mmps / 1000.0f;
 
+        // 角度フィードバック: 現在角度と目標角度の差分
+        const float angle_error = sensors.get_angle() - stop_target_angle_rad;
+        const float lateral_correction = ANGLE_FB_GAIN * angle_error;
+
         target_vr_mps = v_cmd_mps;
         target_vl_mps = v_cmd_mps;
         if (v_cmd_mps == 0.0f) {
             motion.stop();
         } else {
-            motion.forward(v_cmd_mps, 0.0f);
+            motion.forward(v_cmd_mps, lateral_correction);
         }
     }
 }

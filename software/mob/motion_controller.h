@@ -58,8 +58,8 @@ private:
     float turn_target_rad_ = 0.0f;
     float turn_start_angle_rad_ = 0.0f;
 
-    // Lateral correction gain (placeholder)
-    float k_lateral_ = 0.0f;
+    // Lateral correction gain (rad/s per unit lateral error)
+    float k_lateral_ = 1.0f;
 
     // Internal per-wheel speed PID (reuses the same concept as in mob.ino)
     struct SpeedPID {
