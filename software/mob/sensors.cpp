@@ -4,7 +4,9 @@ Sensors::Sensors(IMU& imu, WallSensor& wall_sensor, ADC& adc, Encoder& encoder)
     : imu_(imu), wall_sensor_(wall_sensor), adc_(adc), encoder_(encoder),
       gyro_z_(0.0f), lf_(0), rf_(0), ls_(0), rs_(0),
       battery_voltage_(0.0f), right_wheel_angle_(0), left_wheel_angle_(0),
-      distance_(0.0f), angle_(0.0f), prev_right_angle_(0), prev_left_angle_(0) {
+      distance_(0.0f), angle_(0.0f), prev_right_angle_(0), prev_left_angle_(0),
+      gyro_offset_(0.0f), calibrating_(false), calib_count_(0), calib_sum_(0.0f),
+      calib_interval_ms_(5), calib_timer_ms_(0) {
 }
 
 void Sensors::update(uint32_t time_delta_ms) {
@@ -12,6 +14,23 @@ void Sensors::update(uint32_t time_delta_ms) {
     int16_t raw_gyro_z = imu_.read_gyro_z();
     float gyro_z_radps = imu_.convert_gyro_z_to_radps(raw_gyro_z);
     gyro_z_.store(gyro_z_radps, std::memory_order_relaxed);
+    
+    // キャリブレーション処理（非ブロッキング）
+    if (calibrating_.load(std::memory_order_relaxed)) {
+        calib_timer_ms_ += time_delta_ms;
+        if (calib_timer_ms_ >= calib_interval_ms_) {
+            calib_timer_ms_ = 0;
+            calib_sum_ += gyro_z_radps;
+            calib_count_++;
+            
+            if (calib_count_ >= 100) {
+                // 100サンプル完了
+                float offset = calib_sum_ / 100.0f;
+                gyro_offset_.store(offset, std::memory_order_relaxed);
+                calibrating_.store(false, std::memory_order_relaxed);
+            }
+        }
+    }
     
     // 壁センサー値の読み取り
     uint16_t lf_value = wall_sensor_.lf();
@@ -61,8 +80,8 @@ void Sensors::update(uint32_t time_delta_ms) {
     // エンコーダ推定: (dr - dl)/wheel_base は幾何学的にラジアン
     float delta_angle_encoder = (distance_r - distance_l) / WHEEL_BASE;
     
-    // 相補フィルタ（現在はエンコーダのみに寄せている）
-    float delta_angle = /*0.98f * delta_angle_gyro + 0.02f * */ delta_angle_encoder;
+    // 相補フィルタ
+    float delta_angle = delta_angle_gyro; //0.98f * delta_angle_gyro + 0.02f * delta_angle_encoder;
     
     // 累積値更新
     distance_.store(distance_.load(std::memory_order_relaxed) + delta_distance, std::memory_order_relaxed);
@@ -74,7 +93,9 @@ void Sensors::update(uint32_t time_delta_ms) {
 }
 
 float Sensors::get_gyro_z() const {
-    return gyro_z_.load(std::memory_order_relaxed);
+    float raw_gyro = gyro_z_.load(std::memory_order_relaxed);
+    float offset = gyro_offset_.load(std::memory_order_relaxed);
+    return raw_gyro - offset;
 }
 
 uint16_t Sensors::get_lf() const {
@@ -119,4 +140,20 @@ void Sensors::reset_distance() {
 
 void Sensors::reset_angle() {
     angle_.store(0.0f, std::memory_order_relaxed);
+}
+
+void Sensors::calibrate_gyro() {
+    // キャリブレーション開始（update()ループ内で処理される）
+    calib_count_ = 0;
+    calib_sum_ = 0.0f;
+    calib_timer_ms_ = 0;
+    calibrating_.store(true, std::memory_order_relaxed);
+}
+
+bool Sensors::is_calibrating() const {
+    return calibrating_.load(std::memory_order_relaxed);
+}
+
+float Sensors::get_gyro_offset() const {
+    return gyro_offset_.load(std::memory_order_relaxed);
 }

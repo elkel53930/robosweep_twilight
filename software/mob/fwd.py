@@ -21,6 +21,9 @@ import time
 
 import serial  # pyserial
 
+FWD_SPEED = 300
+FWD_ACC = 1000
+
 
 def wait_done(ser: serial.Serial, timeout_s: float) -> None:
     deadline = time.time() + timeout_s
@@ -86,11 +89,18 @@ def main() -> int:
         ser.reset_output_buffer()
 
         def send(line: str) -> None:
-            # Give the device a moment and clear any queued output so we wait for DONE *after* this command
+            # Clear input buffer before sending to avoid stale DONE messages
+            try:
+                ser.reset_input_buffer()
+            except:
+                pass
+            time.sleep(0.01)  # Small delay to ensure buffer is clear
             ser.write(line.encode("ascii", errors="ignore"))
             print(f"TX: {line.strip()}")
 
         for _ in range(1):
+            send("GCAL\n")
+            time.sleep(1)
             send("RDST\n")
             wait_done(ser, args.timeout)
             print("RX: DONE (RDST)")
@@ -99,15 +109,15 @@ def main() -> int:
             wait_done(ser, args.timeout)
             print("RX: DONE (RANG)")
             
-            send("FWD,400,2000,90\n")
+            send(f"FWD,{FWD_SPEED},{FWD_ACC},90\n")
             wait_done(ser, args.timeout)
             print("RX: DONE (FWD)")
 
-            send("FWD,400,2000,180\n")
+            send(f"FWD,{FWD_SPEED},{FWD_ACC},180\n")
             wait_done(ser, args.timeout)
             print("RX: DONE (FWD)")
 
-            send("STOP,400,2000,90\n")
+            send(f"STOP,{FWD_SPEED},{FWD_ACC},90\n")
             wait_done(ser, args.timeout)
             print("RX: DONE (STOP)")
 
@@ -117,6 +127,22 @@ def main() -> int:
             print("RX: DONE (TURN)")
 
             time.sleep(0.1)
+
+            send("RDST\n")
+            wait_done(ser, args.timeout)
+            print("RX: DONE (RDST)")
+            
+            send("RANG\n")
+            wait_done(ser, args.timeout)
+            print("RX: DONE (RANG)")
+
+            send(f"FWD,{FWD_SPEED},{FWD_ACC},90\n")
+            wait_done(ser, args.timeout)
+            print("RX: DONE (FWD)")
+
+            send(f"STOP,{FWD_SPEED},{FWD_ACC},90\n")
+            wait_done(ser, args.timeout)
+            print("RX: DONE (STOP)")
 
         # Request sensor data to display current distance
         send("SEN\n")

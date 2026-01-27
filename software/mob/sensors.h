@@ -31,6 +31,11 @@ public:
     void reset_distance();                   // 距離リセット
     void reset_angle();                      // 角度リセット
     
+    // ジャイロキャリブレーション
+    void calibrate_gyro();                   // ジャイロオフセットを計算（100回サンプル平均）
+    float get_gyro_offset() const;           // 現在のジャイロオフセット値を取得
+    bool is_calibrating() const;             // キャリブレーション中かどうか
+    
 private:
     // センサーへの参照
     IMU& imu_;
@@ -53,6 +58,14 @@ private:
     std::atomic<float> angle_;          // 累積姿勢角度（rad）
     uint16_t prev_right_angle_;         // 前回の右エンコーダ値
     uint16_t prev_left_angle_;          // 前回の左エンコーダ値
+    
+    // ジャイロキャリブレーション用
+    std::atomic<float> gyro_offset_;    // ジャイロオフセット（rad/s）
+    std::atomic<bool> calibrating_;     // キャリブレーション中フラグ
+    int calib_count_;                   // キャリブレーションサンプルカウント
+    float calib_sum_;                   // キャリブレーションサンプル合計
+    uint32_t calib_interval_ms_;        // キャリブレーションサンプル間隔
+    uint32_t calib_timer_ms_;           // キャリブレーションタイマー
     
     // ロボット物理パラメータ
     static constexpr float WHEEL_DIAMETER = 23.4f;     // ホイール直径（mm）

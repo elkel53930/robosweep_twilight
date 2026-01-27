@@ -20,18 +20,27 @@ bool IMU::begin() {
     delay(50);
     
     // CTRL2_G: ジャイロスコープ設定
-    //   ODR = 6.66kHz (1010b), FS = ±2000dps (11b), High Performance (0b)
-    const uint8_t gyro_config[2] = {0x11, 0xAC};  // 0b10101100
+    //   ODR = 416Hz (0110b), FS = ±2000dps (11b)
+    const uint8_t gyro_config[2] = {0x11, 0x6C};  // 0b01101100
     imu_transfer(r_buffer, gyro_config, 2);
     
     // CTRL1_XL: 加速度センサー設定 (オプション)
-    //   ODR = 6.66kHz (1010b), FS = ±4g (10b), High Performance (0b)
-    const uint8_t accel_config[2] = {0x10, 0xA8};  // 0b10101000
+    //   ODR = 416Hz (0110b), FS = ±4g (10b)
+    const uint8_t accel_config[2] = {0x10, 0x68};  // 0b01101000
     imu_transfer(r_buffer, accel_config, 2);
     
     // CTRL3_C: ブロックデータ更新を有効化
-    const uint8_t ctrl3_config[2] = {0x12, 0x40};  // BDU bit
+    const uint8_t ctrl3_config[2] = {0x12, 0x44};  // BDU bit + IF_INC (auto-increment)
     imu_transfer(r_buffer, ctrl3_config, 2);
+    
+    // CTRL6_C: ジャイロのハイパフォーマンスモードを有効化
+    const uint8_t ctrl6_config[2] = {0x15, 0x00};  // High performance mode for gyro
+    imu_transfer(r_buffer, ctrl6_config, 2);
+    
+    // CTRL7_G: ジャイロのローパスフィルタを有効化
+    //   LPF1 enabled, cutoff = ODR/4 (約104Hz)
+    const uint8_t ctrl7_config[2] = {0x16, 0x00};  // LPF1 enabled by default
+    imu_transfer(r_buffer, ctrl7_config, 2);
     
     // 初期化後に少し待つ
     delay(100);
@@ -45,7 +54,13 @@ int16_t IMU::read_gyro_z() {
     imu_transfer(r_buffer, w_buffer, 3);
     
     // 受信データからZ軸ジャイロデータを構成
+    // LSM6DSR: レジスタ0x26=LSB, 0x27=MSB (リトルエンディアン)
+    // r_buffer[0] = ダミー, r_buffer[1] = LSB, r_buffer[2] = MSB
     int16_t result = ((int16_t)r_buffer[2] << 8) | (int16_t)r_buffer[1];
+    
+    // デバッグ用: バイトオーダーを試すため、逆も試してみる
+    // int16_t result_swap = ((int16_t)r_buffer[1] << 8) | (int16_t)r_buffer[2];
+    // もし逆の方がノイズが少なければ、上の行をコメントアウトして下の行を使う
     
     return result;
 }
@@ -84,7 +99,7 @@ void IMU::imu_transfer(uint8_t* r_buffer, const uint8_t* w_buffer, size_t length
     
     // CSピンをLOWにしてデバイス選択
     digitalWrite(IMU_CS, LOW);
-    delayMicroseconds(10); // より長いsetup time
+    delayMicroseconds(50); // より長いsetup time
     
     // データの送受信
     for (size_t i = 0; i < length; i++) {
@@ -92,7 +107,7 @@ void IMU::imu_transfer(uint8_t* r_buffer, const uint8_t* w_buffer, size_t length
     }
     
     // より長いhold time
-    delayMicroseconds(10);
+    delayMicroseconds(50);
     // CSピンをHIGHにしてデバイス非選択
     digitalWrite(IMU_CS, HIGH);
     
