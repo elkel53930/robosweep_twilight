@@ -20,8 +20,8 @@ bool IMU::begin() {
     delay(50);
     
     // CTRL2_G: ジャイロスコープ設定
-    //   ODR = 416Hz (0110b), FS = ±2000dps (11b)
-    const uint8_t gyro_config[2] = {0x11, 0x6C};  // 0b01101100
+    //   ODR = 416Hz (0110b), FS = ±1000dps (10b)
+    const uint8_t gyro_config[2] = {0x11, 0x68};  // 0b01101000
     imu_transfer(r_buffer, gyro_config, 2);
     
     // CTRL1_XL: 加速度センサー設定 (オプション)
@@ -67,7 +67,7 @@ int16_t IMU::read_gyro_z() {
 
 float IMU::convert_gyro_z_to_radps(int16_t raw_value) {
     // 生データを物理値（rad/s）に変換
-    // FS = ±2000dps の場合、感度は 70 mdps/LSB = 0.070 dps/LSB
+    // FS = ±1000dps の場合、感度は 35 mdps/LSB = 0.035 dps/LSB
     // rad/s = dps * pi/180
     return static_cast<float>(raw_value) * GYRO_SENSITIVITY_RADPS;
 }

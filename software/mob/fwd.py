@@ -21,7 +21,7 @@ import time
 
 import serial  # pyserial
 
-FWD_SPEED = 300
+FWD_SPEED = 250
 FWD_ACC = 1000
 
 
@@ -114,29 +114,6 @@ def main() -> int:
             print("RX: DONE (FWD)")
 
             send(f"FWD,{FWD_SPEED},{FWD_ACC},180\n")
-            wait_done(ser, args.timeout)
-            print("RX: DONE (FWD)")
-
-            send(f"STOP,{FWD_SPEED},{FWD_ACC},90\n")
-            wait_done(ser, args.timeout)
-            print("RX: DONE (STOP)")
-
-            # send("RANG\n")
-            send("TURN,-1.53\n")
-            wait_done(ser, args.timeout)
-            print("RX: DONE (TURN)")
-
-            time.sleep(0.1)
-
-            send("RDST\n")
-            wait_done(ser, args.timeout)
-            print("RX: DONE (RDST)")
-            
-            send("RANG\n")
-            wait_done(ser, args.timeout)
-            print("RX: DONE (RANG)")
-
-            send(f"FWD,{FWD_SPEED},{FWD_ACC},90\n")
             wait_done(ser, args.timeout)
             print("RX: DONE (FWD)")
 

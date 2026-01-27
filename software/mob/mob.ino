@@ -27,7 +27,6 @@ static float cumulative_goal_dist_mm = 0.0f; // 累積目標距離 [mm]（RDST�
 
 // 停止コマンド（減速して停止する）状態
 static bool stop_active = false;
-static bool stop_done_pending = false;   // STOP目標距離到達後、停止確認してDONEを返す
 static float stop_v_cmd_mmps = 0.0f;      // 現在指令速度 [mm/s]
 static float stop_v_target_mmps = 0.0f;   // 目標速度（通常 0）[mm/s]
 static float stop_a_mmps2 = 0.0f;         // 減速度 [mm/s^2]（負ではなく絶対値として扱う）
@@ -35,6 +34,7 @@ static float stop_goal_dist_mm = 0.0f;    // 絶対目標距離 [mm]
 static float stop_cruise_mmps = 0.0f;     // STOP引数speed_mmps（巡航速度想定）[mm/s]
 
 static constexpr float FINAL_APPROACH_SPEED_MMPS = 50.0f;  // STOP時の最終進入速度
+static constexpr float STOP_MIN_SPEED_MMPS = 20.0f;        // STOP時の最低速度 [mm/s]
 
 // 旋回コマンド（その場旋回）状態
 static bool turn_active = false;
@@ -223,7 +223,6 @@ void handleForwardCommand(const ForwardCommand& cmd) {
 void handleStopCommand(const StopCommand& cmd) {
     // STOP: 指定距離で停止（必要に応じて50mm/sまで減速して進入）
     stop_active = true;
-    stop_done_pending = false;
     fwd_active = false;
     turn_active = false;
 
@@ -360,12 +359,11 @@ void updateStop(float dt_s) {
     // 目標距離に到達したら、まず停止指令を出し、次のループでDONEを返す
     if (remain_mm <= 0.0f) {
         stop_active = false;
-        stop_done_pending = true;
         stop_v_cmd_mmps = 0.0f;
-
         target_vr_mps = 0.0f;
         target_vl_mps = 0.0f;
         motion.stop();
+        enqueue_msg_line("DONE\n");
     } else {
         const float a_mag = stop_a_mmps2;
         const float v = stop_v_cmd_mmps;
@@ -385,10 +383,10 @@ void updateStop(float dt_s) {
 
         float v_next = v;
 
-        // 残距離が「50->0の距離」以下なら、優先して停止に向けて減速（50以下ならそのまま減速）
+        // 残距離が「50->0の距離」以下なら、優先して停止に向けて減速（ただし20mm/s未満にはしない）
         if (remain_mm <= dist_50_to_0) {
             if (a_mag > 1e-3f) v_next = v - a_mag * dt_s;
-            if (v_next < 0.0f) v_next = 0.0f;
+            if (v_next < STOP_MIN_SPEED_MMPS) v_next = STOP_MIN_SPEED_MMPS;
         } else if (remain_mm <= (dist_to_50 + dist_50_to_0)) {
             // そろそろ 50mm/s まで落とすフェーズ
             if (a_mag > 1e-3f) v_next = v - a_mag * dt_s;
@@ -477,12 +475,6 @@ void Core0RealtimeTask(void* parameter) {
         updateForward(dt_s);
         updateStop(dt_s);
         updateTurn(dt_s);
-
-        // STOPのDONE返却（停止指令後に一度だけ）
-        if (stop_done_pending) {
-            stop_done_pending = false;
-            enqueue_msg_line("DONE\n");
-        }
 
         // ジャイロキャリブレーション完了チェック
         if (gyro_calib_done_pending && !sensors.is_calibrating()) {

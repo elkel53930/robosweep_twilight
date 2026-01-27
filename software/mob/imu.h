@@ -23,9 +23,9 @@ private:
     static constexpr int IMU_CS = 12;  // CSピンを適切なピンに設定してください
     
     // ジャイロスコープの感度定数（LSM6DSR データシート参照）
-    // FS = ±2000dps の場合: 70 mdps/LSB = 0.070 dps/LSB
+    // FS = ±1000dps の場合: 35 mdps/LSB = 0.035 dps/LSB
     // rad/s = dps * pi/180
-    static constexpr float GYRO_SENSITIVITY_RADPS = 0.070f * 3.14159265359f / 180.0f;  // rad/s/LSB
+    static constexpr float GYRO_SENSITIVITY_RADPS = 0.035f * 3.14159265359f / 180.0f;  // rad/s/LSB
     
     // レジスタアドレス定数
     static constexpr uint8_t WHO_AM_I = 0x0F;
