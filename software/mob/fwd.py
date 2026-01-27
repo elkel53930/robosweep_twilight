@@ -23,8 +23,8 @@ import serial  # pyserial
 
 FWD_SPEED = 350
 FWD_ACC = 1500
-TURN_R = -1.53  # approx 90 degrees
-TURN_L = 1.53  # approx -90 degrees
+TURN_R = -1.57  # approx 90 degrees
+TURN_L = 1.57  # approx -90 degrees
 
 class RobotController:
     """ロボット制御用シリアル通信クラス"""
@@ -129,6 +129,13 @@ class RobotController:
         self._send(f"TURN,{angle_rad}\n")
         self._wait_done()
         print("RX: DONE (TURN)")
+    
+    def wall(self, enable: bool) -> None:
+        """壁制御ON/OFF"""
+        val = 1 if enable else 0
+        self._send(f"WALL,{val}\n")
+        # WALLはDONE応答がない
+        print(f"RX: DONE (WALL,{val})")
     
     def sen(self) -> dict | None:
         """センサーデータ取得"""
@@ -238,11 +245,13 @@ def main() -> int:
             robot.gcal()
             robot.rdst()
             robot.rang()
+
+            robot.wall(True)  # 壁センサオン
             
             robot.fwd(FWD_SPEED, FWD_ACC, 90)
             robot.fwd(FWD_SPEED, FWD_ACC, 180)
             robot.stop(FWD_SPEED, FWD_ACC, 90)
-            
+
             robot.turn(TURN_R)
             
             robot.fwd(FWD_SPEED, FWD_ACC, 90)
@@ -259,6 +268,7 @@ def main() -> int:
             robot.stop(FWD_SPEED, FWD_ACC, 90)
 
             robot.turn(TURN_R*2)
+            robot.wall(False)  # 壁センサオフ
         # Request sensor data to display current distance
         sensor_data = robot.sen()
         if sensor_data:

@@ -51,12 +51,47 @@ static bool gyro_calib_done_pending = false;  // キャリブレーション完�
 // 角度制御パラメータ（簡易P + 速度制限）
 static constexpr float TURN_KP_MPS_PER_RAD = 0.35f;   // [m/s]/rad
 static constexpr float TURN_MAX_SPEED_MPS = 0.25f;
-static constexpr float TURN_MIN_SPEED_MPS = 0.08f;
+static constexpr float TURN_MIN_SPEED_MPS = 0.04f;
 static constexpr float TURN_DONE_TOL_RAD = 0.03f;     // 約1.7deg
 static constexpr float TURN_ACCEL_MPS2 = 1.2f;        // 旋回時の車輪速度加速度制限 [m/s^2]
 
 // 直進時の角度フィードバックゲイン
 static constexpr float ANGLE_FB_GAIN = 0.5f;  // [m/s]/rad
+
+// 壁センサフィードバックパラメータ
+static constexpr float WALL_SENSOR_THRESHOLD = 100.0f;  // 壁検出閾値
+static constexpr float WALL_SENSOR_TARGET = 240.0f;     // 中央時の目標値
+static constexpr float WALL_SENSOR_GAIN = 0.0005f;      // 壁センサフィードバックゲイン [m/s] per sensor unit
+
+// 壁センサを使用した横方向補正値を計算
+// 戻り値: 正の値は右に寄せる補正、負の値は左に寄せる補正
+static float calculate_wall_correction(const Sensors& sensors_ref) {
+    const uint16_t rs_val = sensors_ref.get_rs();  // 右側センサ
+    const uint16_t ls_val = sensors_ref.get_ls();  // 左側センサ
+    
+    const bool rs_valid = (rs_val >= WALL_SENSOR_THRESHOLD);
+    const bool ls_valid = (ls_val >= WALL_SENSOR_THRESHOLD);
+    
+    float correction = 0.0f;
+    
+    if (rs_valid && ls_valid) {
+        // 両方のセンサが有効な場合：両方を使用
+        const float rs_error = WALL_SENSOR_TARGET - static_cast<float>(rs_val);
+        const float ls_error = static_cast<float>(ls_val) - WALL_SENSOR_TARGET;
+        correction = (rs_error + ls_error) * 0.5f * WALL_SENSOR_GAIN;
+    } else if (ls_valid) {
+        // 左センサのみ有効：左センサを使用して右に寄せる
+        const float ls_error = static_cast<float>(ls_val) - WALL_SENSOR_TARGET;
+        correction = ls_error * WALL_SENSOR_GAIN;
+    } else if (rs_valid) {
+        // 右センサのみ有効：右センサを使用して左に寄せる
+        const float rs_error = WALL_SENSOR_TARGET - static_cast<float>(rs_val);
+        correction = rs_error * WALL_SENSOR_GAIN;
+    }
+    // 両方無効な場合は correction = 0.0f のまま
+    
+    return correction;
+}
 
 static inline float slew_rate_limit(float current, float target, float max_delta) {
     if (target > current + max_delta) return current + max_delta;
@@ -358,7 +393,25 @@ void updateForward(float dt_s) {
         
         // 角度フィードバック: 現在角度と目標角度の差分
         const float angle_error = sensors.get_angle() - fwd_target_angle_rad;
-        const float lateral_correction = ANGLE_FB_GAIN * angle_error;
+        const float angle_correction = ANGLE_FB_GAIN * angle_error;
+        
+        // 壁センサフィードバック
+        const float wall_correction = calculate_wall_correction(sensors);
+
+        {
+            static int dbg_count = 0;
+            dbg_count++;
+            if (dbg_count >= 100) {
+                dbg_count = 0;
+                char msg[128];
+                snprintf(msg, sizeof(msg), "#WALLCORR: RS=%u LS=%u CORR=%.4f\n",
+                         sensors.get_rs(), sensors.get_ls(), wall_correction);
+                enqueue_msg_line(msg);
+            }
+        }
+        
+        // 合計補正値
+        const float lateral_correction = angle_correction + wall_correction;
         
         target_vr_mps = v_cmd_mps;
         target_vl_mps = v_cmd_mps;
@@ -422,7 +475,25 @@ void updateStop(float dt_s) {
 
         // 角度フィードバック: 現在角度と目標角度の差分
         const float angle_error = sensors.get_angle() - stop_target_angle_rad;
-        const float lateral_correction = ANGLE_FB_GAIN * angle_error;
+        const float angle_correction = ANGLE_FB_GAIN * angle_error;
+        
+        // 壁センサフィードバック
+        const float wall_correction = calculate_wall_correction(sensors);
+
+        {
+            static int dbg_count = 0;
+            dbg_count++;
+            if (dbg_count >= 100) {
+                dbg_count = 0;
+                char msg[128];
+                snprintf(msg, sizeof(msg), "#WALLCORR: RS=%u LS=%u CORR=%.4f\n",
+                         sensors.get_rs(), sensors.get_ls(), wall_correction);
+                enqueue_msg_line(msg);
+            }
+        }
+        
+        // 合計補正値
+        const float lateral_correction = angle_correction + wall_correction;
 
         target_vr_mps = v_cmd_mps;
         target_vl_mps = v_cmd_mps;
