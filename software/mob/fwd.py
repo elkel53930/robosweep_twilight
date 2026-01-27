@@ -27,7 +27,18 @@ def wait_done(ser: serial.Serial, timeout_s: float) -> None:
     buf = []
 
     while time.time() < deadline:
-        raw = ser.readline()
+        time.sleep(0.01)  # small delay to allow response
+        try:
+            raw = ser.readline()
+        except serial.SerialException as e:
+            # USB device temporary glitch - wait and retry
+            print(f"#Serial error: {e}, retrying...")
+            time.sleep(0.1)
+            try:
+                ser.reset_input_buffer()
+            except:
+                pass
+            continue
         if not raw:
             continue
 
@@ -46,6 +57,10 @@ def wait_done(ser: serial.Serial, timeout_s: float) -> None:
         # Ignore sensor spam
         if line.startswith("SEN,"):
             continue
+
+        # Display messages starting with #
+        if line.startswith("#"):
+            print(line)
 
         # Accept DONE
         if line == "DONE":
@@ -75,10 +90,20 @@ def main() -> int:
             ser.write(line.encode("ascii", errors="ignore"))
             print(f"TX: {line.strip()}")
 
-        for _ in range(4):
+        for _ in range(1):
             send("RDST\n")
+            wait_done(ser, args.timeout)
+            print("RX: DONE (RDST)")
+            
             send("RANG\n")
+            wait_done(ser, args.timeout)
+            print("RX: DONE (RANG)")
+            
             send("FWD,400,2000,90\n")
+            wait_done(ser, args.timeout)
+            print("RX: DONE (FWD)")
+
+            send("FWD,400,2000,180\n")
             wait_done(ser, args.timeout)
             print("RX: DONE (FWD)")
 
@@ -92,6 +117,35 @@ def main() -> int:
             print("RX: DONE (TURN)")
 
             time.sleep(0.1)
+
+        # Request sensor data to display current distance
+        send("SEN\n")
+        time.sleep(0.05)  # Wait a bit for response
+        
+        # Read SEN response
+        deadline = time.time() + 1.0
+        while time.time() < deadline:
+            try:
+                raw = ser.readline()
+            except serial.SerialException:
+                break
+            if not raw:
+                continue
+            
+            line = raw.decode("ascii", errors="replace").rstrip("\r\n").strip()
+            if line.startswith("SEN,"):
+                # Parse SEN response: SEN,gyro,vbatt,lf,ls,rs,rf,enc_r,enc_l,odo_dist,odo_ang
+                parts = line.split(",")
+                if len(parts) >= 10:
+                    try:
+                        odo_dist = float(parts[9])
+                        odo_ang = float(parts[10]) if len(parts) > 10 else 0.0
+                        print(f"\n=== Final Position ===")
+                        print(f"Distance: {odo_dist:.2f} mm")
+                        print(f"Angle: {odo_ang:.4f} rad ({odo_ang * 180 / 3.14159:.2f} deg)")
+                    except ValueError:
+                        print(f"#Failed to parse SEN data: {line}")
+                break
 
         return 0
     finally:

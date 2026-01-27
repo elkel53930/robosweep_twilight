@@ -122,7 +122,8 @@ static inline void enqueue_msg_line(const char* s) {
         m.text[i] = s[i];
     }
     m.text[i] = '\0';
-    (void)xQueueSend(msg_queue, &m, 0);
+    // DONEなど重要なメッセージを確実に送るため、最大10msまで待つ
+    (void)xQueueSend(msg_queue, &m, pdMS_TO_TICKS(10));
 }
 
 void IRAM_ATTR onHighSpeedTimer() {
@@ -173,6 +174,7 @@ void Core0RealtimeTask(void* parameter) {
                 motion.forward((vr + vl) * 0.5f, 0.0f);
             } else if (q.cmd_id == CMD_FORWARD) {
                 // FWD: 加速して指定速度へ、距離到達でDONE（停止しない）
+                led.red_on();  // FWD開始時に赤色LED点灯
                 fwd_active = true;
                 stop_active = false;
 
@@ -215,9 +217,11 @@ void Core0RealtimeTask(void* parameter) {
             } else if (q.cmd_id == CMD_RESET_DISTANCE) {
                 sensors.reset_distance();
                 enqueue_msg_line("#distance reset\n");
+                enqueue_msg_line("DONE\n");
             } else if (q.cmd_id == CMD_RESET_ANGLE) {
                 sensors.reset_angle();
                 enqueue_msg_line("#angle reset\n");
+                enqueue_msg_line("DONE\n");
             } else if (q.cmd_id == CMD_TURN) {
                 // TURN: その場旋回（角度のみ）
                 turn_active = true;
@@ -246,6 +250,7 @@ void Core0RealtimeTask(void* parameter) {
 
             if (remain_mm <= 0.0f) {
                 fwd_active = false;
+                led.red_off();  // FWD完了時に赤色LED消灯
                 enqueue_msg_line("DONE\n");
             } else {
                 float v_next = fwd_v_cmd_mmps;
@@ -393,6 +398,9 @@ void setup() {
     motor.begin();
     encoder.begin();
     imu.begin();
+    
+    // 起動時に赤色LEDを消灯
+    led.red_off();
 
     // コマンドキューの作成
     cmd_queue = xQueueCreate(16, sizeof(Command));
@@ -402,7 +410,7 @@ void setup() {
     }
 
     // Core0 -> Core1 メッセージキューの作成
-    msg_queue = xQueueCreate(32, sizeof(MsgLine));
+    msg_queue = xQueueCreate(128, sizeof(MsgLine));
     if (msg_queue == NULL) {
         Serial.printf("#Failed to create message queue!\n");
         while(1);
