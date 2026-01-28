@@ -29,19 +29,22 @@ static float cumulative_goal_dist_mm = 0.0f; // 累積目標距離 [mm]（RDST�
 // 停止コマンド（減速して停止する）状態
 static bool stop_active = false;
 static float stop_v_cmd_mmps = 0.0f;      // 現在指令速度 [mm/s]
-static float stop_v_target_mmps = 0.0f;   // 目標速度（通常 0）[mm/s]
 static float stop_a_mmps2 = 0.0f;         // 減速度 [mm/s^2]（負ではなく絶対値として扱う）
 static float stop_goal_dist_mm = 0.0f;    // 絶対目標距離 [mm]
 static float stop_target_angle_rad = 0.0f; // 目標角度 [rad] （角度フィードバック用）
 static float stop_cruise_mmps = 0.0f;     // STOP引数speed_mmps（巡航速度想定）[mm/s]
+static float stop_elapsed_s = 0.0f;       // STOP経過時間 [s]
+static bool stop_backoff_active = false;  // タイムアウト後の後退中か
+static float stop_backoff_target_dist_mm = 0.0f; // 後退完了目標距離 [mm]
 
 static constexpr float FINAL_APPROACH_SPEED_MMPS = 50.0f;  // STOP時の最終進入速度
 static constexpr float STOP_MIN_SPEED_MMPS = 20.0f;        // STOP時の最低速度 [mm/s]
+static constexpr float STOP_TIMEOUT_SEC = 4.0f;            // STOPのタイムアウト [s]
+static constexpr float STOP_BACKOFF_DIST_MM = 30.0f;       // タイムアウト時の後退距離 [mm]
+static constexpr float STOP_BACKOFF_SPEED_MPS = 0.12f;     // タイムアウト時の後退速度 [m/s]
 
 // 旋回コマンド（その場旋回）状態
 static bool turn_active = false;
-static float turn_target_rad = 0.0f;
-static float turn_start_angle_rad = 0.0f;
 static float turn_goal_angle_rad = 0.0f;
 static float turn_speed_cmd_mps = 0.0f; // 指令速度（加減速制限後）
 
@@ -55,8 +58,11 @@ static constexpr float TURN_MIN_SPEED_MPS = 0.04f;
 static constexpr float TURN_DONE_TOL_RAD = 0.03f;     // 約1.7deg
 static constexpr float TURN_ACCEL_MPS2 = 1.2f;        // 旋回時の車輪速度加速度制限 [m/s^2]
 
-// 直進時の角度フィードバックゲイン
+// 直進時の角度フィードバックゲイン（いったん
 static constexpr float ANGLE_FB_GAIN = 0.5f;  // [m/s]/rad
+
+// 直進時の角速度フィードバックゲイン（角速度→0）
+static constexpr float ANGULAR_RATE_FB_GAIN = 0.02f;  // [m/s]/(rad/s)
 
 // 壁センサフィードバックパラメータ
 static constexpr float WALL_SENSOR_THRESHOLD = 100.0f;  // 壁検出閾値
@@ -221,6 +227,8 @@ void handleSetMotorSpeedCommand(const SetMotorSpeedCommand& cmd) {
     fwd_active = false;
     stop_active = false;
     turn_active = false;
+    stop_backoff_active = false;
+    stop_elapsed_s = 0.0f;
 
     target_vr_mps = vr;
     target_vl_mps = vl;
@@ -233,6 +241,8 @@ void handleForwardCommand(const ForwardCommand& cmd) {
     fwd_active = true;
     stop_active = false;
     turn_active = false;
+    stop_backoff_active = false;
+    stop_elapsed_s = 0.0f;
 
     fwd_v_target_mmps = cmd.speed_mmps;
     fwd_a_mmps2 = cmd.accel_mmps2;
@@ -268,9 +278,11 @@ void handleStopCommand(const StopCommand& cmd) {
     stop_active = true;
     fwd_active = false;
     turn_active = false;
+    stop_backoff_active = false;
+    stop_elapsed_s = 0.0f;
+    stop_backoff_target_dist_mm = 0.0f;
 
     // 引数の速度は「現在速度の想定」だが、ここでは現在の指令速度も併用
-    stop_v_target_mmps = 0.0f;
     stop_a_mmps2 = fabsf(cmd.accel_mmps2);
     stop_cruise_mmps = fabsf(cmd.speed_mmps);
 
@@ -297,16 +309,22 @@ void handleStopCommand(const StopCommand& cmd) {
 void handleTurnCommand(float target_rad) {
     // TURN: その場旋回（角度のみ）
     turn_active = true;
-    turn_target_rad = target_rad;
 
     // 競合回避: ほかのプロファイルを停止
     fwd_active = false;
     stop_active = false;
+    stop_backoff_active = false;
+    stop_elapsed_s = 0.0f;
 
     // 角度制御の基準を確定
-    turn_start_angle_rad = sensors.get_angle();
-    turn_goal_angle_rad = turn_start_angle_rad + turn_target_rad;
+    const float turn_start_angle_rad = sensors.get_angle();
+    turn_goal_angle_rad = turn_start_angle_rad + target_rad;
     turn_speed_cmd_mps = 0.0f;
+
+    // TURNコマンドの詳細情報を通知
+    char msg[64];
+    snprintf(msg, sizeof(msg), "#TURN_GOAL: %.6f\n", turn_goal_angle_rad);
+    enqueue_msg_line(msg);
 
     // 回り始めは MotionController の内部turn状態を新規にするため stop() しておく
     motion.stop();
@@ -394,6 +412,10 @@ void updateForward(float dt_s) {
         // 角度フィードバック: 現在角度と目標角度の差分
         const float angle_error = sensors.get_angle() - fwd_target_angle_rad;
         const float angle_correction = ANGLE_FB_GAIN * angle_error;
+
+        // 角速度フィードバック: 角速度をゼロに保つ
+        const float gyro_z = sensors.get_gyro_z();
+        const float rate_correction = ANGULAR_RATE_FB_GAIN * gyro_z;
         
         // 壁センサフィードバック
         const float wall_correction = calculate_wall_correction(sensors);
@@ -411,7 +433,7 @@ void updateForward(float dt_s) {
         }
         
         // 合計補正値
-        const float lateral_correction = angle_correction + wall_correction;
+        const float lateral_correction = angle_correction + rate_correction + wall_correction;
         
         target_vr_mps = v_cmd_mps;
         target_vl_mps = v_cmd_mps;
@@ -420,7 +442,35 @@ void updateForward(float dt_s) {
 }
 
 void updateStop(float dt_s) {
+    if (stop_backoff_active) {
+        const float now_dist = sensors.get_distance();
+        if (now_dist <= stop_backoff_target_dist_mm) {
+            stop_backoff_active = false;
+            target_vr_mps = 0.0f;
+            target_vl_mps = 0.0f;
+            motion.stop();
+            enqueue_msg_line("DONE\n");
+        } else {
+            target_vr_mps = -STOP_BACKOFF_SPEED_MPS;
+            target_vl_mps = -STOP_BACKOFF_SPEED_MPS;
+            motion.backward(STOP_BACKOFF_SPEED_MPS);
+        }
+        return;
+    }
+
     if (!stop_active) return;
+
+    stop_elapsed_s += dt_s;
+    if (stop_elapsed_s >= STOP_TIMEOUT_SEC) {
+        stop_active = false;
+        stop_v_cmd_mmps = 0.0f;
+        target_vr_mps = 0.0f;
+        target_vl_mps = 0.0f;
+        motion.stop();
+        stop_backoff_active = true;
+        stop_backoff_target_dist_mm = sensors.get_distance() - STOP_BACKOFF_DIST_MM;
+        return;
+    }
 
     const float now_dist = sensors.get_distance();
     const float remain_mm = stop_goal_dist_mm - now_dist;
@@ -432,6 +482,8 @@ void updateStop(float dt_s) {
         target_vr_mps = 0.0f;
         target_vl_mps = 0.0f;
         motion.stop();
+        stop_elapsed_s = 0.0f;
+        stop_backoff_active = false;
         enqueue_msg_line("DONE\n");
     } else {
         const float a_mag = stop_a_mmps2;
@@ -476,6 +528,10 @@ void updateStop(float dt_s) {
         // 角度フィードバック: 現在角度と目標角度の差分
         const float angle_error = sensors.get_angle() - stop_target_angle_rad;
         const float angle_correction = ANGLE_FB_GAIN * angle_error;
+
+        // 角速度フィードバック: 角速度をゼロに保つ
+        const float gyro_z = sensors.get_gyro_z();
+        const float rate_correction = ANGULAR_RATE_FB_GAIN * gyro_z;
         
         // 壁センサフィードバック
         const float wall_correction = calculate_wall_correction(sensors);
@@ -493,7 +549,7 @@ void updateStop(float dt_s) {
         }
         
         // 合計補正値
-        const float lateral_correction = angle_correction + wall_correction;
+        const float lateral_correction = angle_correction + rate_correction + wall_correction;
 
         target_vr_mps = v_cmd_mps;
         target_vl_mps = v_cmd_mps;
