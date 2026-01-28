@@ -105,6 +105,25 @@ def main() -> int:
         
         explorer = AdachiExplorer(maze_size=args.maze_size, goals=goals)
         
+        # 迷路の既知の壁を初期化
+        # 1. 外周の壁を設定
+        for x in range(args.maze_size):
+            # 下端（y=0）のSOUTH壁
+            explorer.mark_wall(x, 0, Direction.SOUTH, True)
+            # 上端（y=maze_size-1）のNORTH壁
+            explorer.mark_wall(x, args.maze_size-1, Direction.NORTH, True)
+        
+        for y in range(args.maze_size):
+            # 左端（x=0）のWEST壁
+            explorer.mark_wall(0, y, Direction.WEST, True)
+            # 右端（x=maze_size-1）のEAST壁
+            explorer.mark_wall(args.maze_size-1, y, Direction.EAST, True)
+        
+        # 2. スタート位置(0,0)の右側（EAST）の壁を設定
+        explorer.mark_wall(0, 0, Direction.EAST, True)
+        
+        print(f"#初期壁情報: 外周の壁と(0,0)の右壁を設定")
+        
         # 初期化コマンド
         print("=== 初期化 ===")
         mob.cmd_gcal()  # ジャイロキャリブレーション
@@ -116,8 +135,10 @@ def main() -> int:
         print("\n=== 迷路探索開始 ===")
         
         step_count = 0
-        first_move = True  # 最初の移動フラグ
         
+        mob.start()
+        explorer.step_forward() # まず前進
+
         while step_count < args.max_steps:
             step_count += 1
             print(f"\n--- Step {step_count} ---")
@@ -154,28 +175,13 @@ def main() -> int:
             
             # アクション実行
             # 最初の移動の場合はstart()を使用
-            if first_move and action == 'fwd':
-                mob.start()
-                first_move = False
-            elif action == 'fwd':
+            if action == 'fwd':
                 mob.go_fwd()
             elif action == 'left':
-                # 最初の移動で左の場合（ありえるケース）
-                if first_move:
-                    mob.start()
-                    first_move = False
                 mob.go_left()
             elif action == 'right':
-                # 最初の移動で右の場合（ありえるケース）
-                if first_move:
-                    mob.start()
-                    first_move = False
                 mob.go_right()
             elif action == 'back':
-                # 最初の移動で後退の場合（稀なケース）
-                if first_move:
-                    mob.start()
-                    first_move = False
                 mob.go_back()
             
             # 迷路マップ表示（10ステップごと）

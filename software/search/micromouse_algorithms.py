@@ -276,7 +276,7 @@ class BaseExplorer:
             raise ValueError(f"pose out of bounds: {(x, y)}")
         self.pose = Pose(x, y, heading)
 
-    def _mark_wall(self, x: int, y: int, d: Direction, exists: bool) -> None:
+    def mark_wall(self, x: int, y: int, d: Direction, exists: bool) -> None:
         """Mark wall on cell (x,y) side d; also sets opposite on neighbor."""
         self.known_walls[y][x][int(d)] = exists
         self.observed[y][x][int(d)] = True
@@ -289,9 +289,9 @@ class BaseExplorer:
 
     def update_walls_from_relative(self, left: bool, front: bool, right: bool) -> None:
         x, y, h = self.pose.x, self.pose.y, self.pose.heading
-        self._mark_wall(x, y, h.left(), left)
-        self._mark_wall(x, y, h, front)
-        self._mark_wall(x, y, h.right(), right)
+        self.mark_wall(x, y, h.left(), left)
+        self.mark_wall(x, y, h, front)
+        self.mark_wall(x, y, h.right(), right)
 
     def _can_move_abs(self, x: int, y: int, d: Direction) -> bool:
         # Outside the maze boundary is always a wall.
@@ -307,7 +307,7 @@ class BaseExplorer:
         # Unknown is treated as open.
         return True
 
-    def _step_forward(self) -> None:
+    def step_forward(self) -> None:
         dx, dy = DIR_VECTORS[self.pose.heading]
         nx, ny = self.pose.x + dx, self.pose.y + dy
         if not _in_bounds(nx, ny, self.size):
@@ -503,5 +503,5 @@ class AdachiExplorer(BaseExplorer):
             best_abs = h.back()
 
         self.pose.heading = best_abs
-        self._step_forward()
+        self.step_forward()
         return self.pose.heading
