@@ -16,22 +16,23 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import sys
+from math import pi
 import time
 
 import serial  # pyserial
 
 FWD_SPEED = 350
 FWD_ACC = 1500
-TURN_R = -1.57  # approx 90 degrees
-TURN_L = 1.57  # approx -90 degrees
+TURN_R = -pi/2  # approx 90 degrees
+TURN_L = pi/2  # approx -90 degrees
 
-class RobotController:
+class MobileBase:
     """ロボット制御用シリアル通信クラス"""
     
     def __init__(self, ser: serial.Serial, timeout: float = 5.0):
         self.ser = ser
         self.timeout = timeout
+        self.turn_dir = 1  # -1:右回り、1:左回り
     
     def _send(self, line: str) -> None:
         """コマンドを送信"""
@@ -95,49 +96,49 @@ class RobotController:
         tail = "\n".join(buf[-50:])
         raise TimeoutError(f"Timed out waiting for DONE (last lines):\n{tail}\n")
     
-    def gcal(self) -> None:
+    def cmd_gcal(self) -> None:
         """ジャイロキャリブレーション"""
         self._send("GCAL\n")
         time.sleep(1)  # キャリブレーション待機
     
-    def rdst(self) -> None:
+    def cmd_rdst(self) -> None:
         """距離リセット"""
         self._send("RDST\n")
         self._wait_done()
         print("RX: DONE (RDST)")
     
-    def rang(self) -> None:
+    def cmd_rang(self) -> None:
         """角度リセット"""
         self._send("RANG\n")
         self._wait_done()
         print("RX: DONE (RANG)")
     
-    def fwd(self, speed_mmps: float, accel_mmps2: float, distance_mm: float) -> None:
+    def cmd_fwd(self, speed_mmps: float, accel_mmps2: float, distance_mm: float) -> None:
         """前進コマンド"""
         self._send(f"FWD,{speed_mmps},{accel_mmps2},{distance_mm}\n")
         self._wait_done()
         print("RX: DONE (FWD)")
     
-    def stop(self, speed_mmps: float, accel_mmps2: float, distance_mm: float) -> None:
+    def cmd_stop(self, speed_mmps: float, accel_mmps2: float, distance_mm: float) -> None:
         """停止コマンド"""
         self._send(f"STOP,{speed_mmps},{accel_mmps2},{distance_mm}\n")
         self._wait_done()
         print("RX: DONE (STOP)")
     
-    def turn(self, angle_rad: float) -> None:
+    def cmd_turn(self, angle_rad: float) -> None:
         """旋回コマンド"""
         self._send(f"TURN,{angle_rad}\n")
         self._wait_done()
         print("RX: DONE (TURN)")
     
-    def wall(self, enable: bool) -> None:
+    def cmd_wall(self, enable: bool) -> None:
         """壁制御ON/OFF"""
         val = 1 if enable else 0
         self._send(f"WALL,{val}\n")
         # WALLはDONE応答がない
         print(f"RX: DONE (WALL,{val})")
     
-    def sen(self) -> dict | None:
+    def cmd_sen(self) -> dict | None:
         """センサーデータ取得"""
         self._send("SEN\n")
         time.sleep(0.05)  # Wait a bit for response
@@ -174,6 +175,50 @@ class RobotController:
                         print(f"#Failed to parse SEN data: {line} ({e})")
                         break
         return None
+    
+    def start(self) -> None:
+        """マス中央から走り出す"""
+        self.cmd_fwd(FWD_SPEED, FWD_ACC, 90)
+    
+    def go_right(self) -> None:
+        """右90度旋回"""
+        self.cmd_stop(FWD_SPEED, FWD_ACC, 90)
+        self.cmd_turn(TURN_R)
+        self.start()
+    
+    def go_left(self) -> None:
+        """左90度旋回"""
+        self.cmd_stop(FWD_SPEED, FWD_ACC, 90)
+        self.cmd_turn(TURN_L)
+        self.start()
+    
+    def stop(self) -> None:
+        """停止して終了"""
+        self.cmd_stop(FWD_SPEED, FWD_ACC, 90)
+
+    def go_fwd(self) -> None:
+        """前進"""
+        self.cmd_fwd(FWD_SPEED, FWD_ACC, 180)
+    
+    def go_back(self) -> None:
+        """戻る"""
+        self.cmd_stop(FWD_SPEED, FWD_ACC, 90)
+        self.cmd_turn(self.turn_dir * pi)
+        self.turn_dir *= -1  # 方向反転
+        self.start()
+    
+    def turn_left_90(self) -> None:
+        """左90度旋回"""
+        self.cmd_turn(TURN_L)
+    
+    def turn_right_90(self) -> None:
+        """右90度旋回"""
+        self.cmd_turn(TURN_R)
+
+    def turn_180(self) -> None:
+        """180度旋回"""
+        self.cmd_turn(self.turn_dir * pi)
+        self.turn_dir *= -1  # 方向反転
 
 
 def wait_done(ser: serial.Serial, timeout_s: float) -> None:
@@ -239,38 +284,35 @@ def main() -> int:
         ser.reset_input_buffer()
         ser.reset_output_buffer()
 
-        robot = RobotController(ser, timeout=args.timeout)
+        mob = MobileBase(ser, timeout=args.timeout)
 
-        for _ in range(1):
-            robot.gcal()
-            robot.rdst()
-            robot.rang()
+        mob.cmd_gcal()
+        mob.cmd_rdst()
+        mob.cmd_rang()
 
-            robot.wall(True)  # 壁センサオン
-            
-            robot.fwd(FWD_SPEED, FWD_ACC, 90)
-            robot.fwd(FWD_SPEED, FWD_ACC, 180)
-            robot.stop(FWD_SPEED, FWD_ACC, 90)
+        mob.cmd_wall(True)  # 壁センサオン
+        for _ in range(2):
+            mob.start()
+            mob.go_right()
+            mob.go_right()
+            mob.go_back()
+            mob.go_left()
+            mob.go_right()
+            mob.go_right()
+            mob.go_left()
+            mob.go_left()
+            mob.go_back()
 
-            robot.turn(TURN_R)
-            
-            robot.fwd(FWD_SPEED, FWD_ACC, 90)
-            robot.stop(FWD_SPEED, FWD_ACC, 90)
+            mob.go_right()
+            mob.go_right()
+            mob.go_left()
+            mob.go_fwd()
+            mob.stop()
+            mob.turn_180()
 
-            robot.turn(TURN_L)
-
-            robot.fwd(FWD_SPEED, FWD_ACC, 90)
-            robot.stop(FWD_SPEED, FWD_ACC, 90)
-
-            robot.turn(TURN_L)
-
-            robot.fwd(FWD_SPEED, FWD_ACC, 90)
-            robot.stop(FWD_SPEED, FWD_ACC, 90)
-
-            robot.turn(TURN_R*2)
-            robot.wall(False)  # 壁センサオフ
+        mob.cmd_wall(False)  # 壁センサオフ
         # Request sensor data to display current distance
-        sensor_data = robot.sen()
+        sensor_data = mob.cmd_sen()
         if sensor_data:
             print(f"\n=== Final Position ===")
             print(f"Distance: {sensor_data['odo_dist']:.2f} mm")
