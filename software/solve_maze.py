@@ -137,48 +137,15 @@ def main() -> int:
             current_heading = explorer.pose.heading
             print(f"#Current pose: ({current_x}, {current_y}) heading={current_heading.name}")
             
-            # 壁情報を反映（ゴール到達時でも記録するため、ゴール判定より前に実行）
-            explorer._update_walls_from_relative(left_wall, front_wall, right_wall)
-            
             # ゴール判定
             if (current_x, current_y) in explorer.goals:
+                explorer.update_walls_from_relative(left_wall, front_wall, right_wall)
                 print(f"\n=== ゴール到達！ ({current_x}, {current_y}) ===")
                 mob.stop()
                 break
             
-            # 距離マップを再計算
-            explorer._recompute_distance_map()
-            
             # 次の進行方向を決定（内部で姿勢が更新される）
-            # decide_heading()内で壁情報更新と距離再計算を行うが、既に実行済みなので重複実行される
-            # しかし正しい動作のため、decide_heading()の一部機能を手動で実行
-            x, y, h = explorer.pose.x, explorer.pose.y, explorer.pose.heading
-            
-            # 最良の移動方向を選択
-            best_abs = None
-            best_dist = 10**9
-            
-            for rel in explorer.direction_priority:
-                d = explorer._rel_to_abs(rel)
-                if not explorer._can_move_abs(x, y, d):
-                    continue
-                from search.micromouse_algorithms import DIR_VECTORS, _in_bounds
-                dx, dy = DIR_VECTORS[d]
-                nx, ny = x + dx, y + dy
-                if not _in_bounds(nx, ny, explorer.size):
-                    continue
-                dd = explorer.dist[ny][nx]
-                if dd < best_dist:
-                    best_dist = dd
-                    best_abs = d
-            
-            # Fallback: if all blocked in known map (should be rare), turn back.
-            if best_abs is None:
-                best_abs = h.back()
-            
-            next_heading = best_abs
-            explorer.pose.heading = best_abs
-            explorer._step_forward()
+            next_heading = explorer.decide_heading(left_wall, front_wall, right_wall)
             print(f"#Next heading: {next_heading.name}")
             
             # 必要なアクションを決定（現在の物理的な向きと、目指すべき絶対方向を比較）

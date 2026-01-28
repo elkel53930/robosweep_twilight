@@ -287,7 +287,7 @@ class BaseExplorer:
             self.known_walls[ny][nx][int(od)] = exists
             self.observed[ny][nx][int(od)] = True
 
-    def _update_walls_from_relative(self, left: bool, front: bool, right: bool) -> None:
+    def update_walls_from_relative(self, left: bool, front: bool, right: bool) -> None:
         x, y, h = self.pose.x, self.pose.y, self.pose.heading
         self._mark_wall(x, y, h.left(), left)
         self._mark_wall(x, y, h, front)
@@ -474,7 +474,7 @@ class AdachiExplorer(BaseExplorer):
 
     def decide_heading(self, left_wall: bool, front_wall: bool, right_wall: bool) -> Direction:
         # 1) Update known walls for this cell.
-        self._update_walls_from_relative(left_wall, front_wall, right_wall)
+        self.update_walls_from_relative(left_wall, front_wall, right_wall)
 
         # 2) Recompute distances with updated walls.
         self._recompute_distance_map()
