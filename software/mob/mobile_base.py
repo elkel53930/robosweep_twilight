@@ -21,10 +21,14 @@ import time
 
 import serial  # pyserial
 
-FWD_SPEED = 350
-FWD_ACC = 1500
+FWD_SPEED = 300
+FWD_ACC = 1200
 TURN_R = -pi/2  # approx 90 degrees
 TURN_L = pi/2  # approx -90 degrees
+
+# LFとRFの基準値
+LF_BASE = 200
+RF_BASE = 222
 
 class MobileBase:
     """ロボット制御用シリアル通信クラス"""
@@ -130,6 +134,31 @@ class MobileBase:
         self._send(f"TURN,{angle_rad}\n")
         self._wait_done()
         print("RX: DONE (TURN)")
+
+    def cmd_lfwd(self) -> None:
+        """低速前進（Lowspeed）"""
+        self._send("LFWD\n")
+        print("RX: DONE (LFWD)")
+
+    def cmd_lback(self) -> None:
+        """低速後退（Lowspeed）"""
+        self._send("LBACK\n")
+        print("RX: DONE (LBACK)")
+
+    def cmd_lturnl(self) -> None:
+        """低速左旋回（Lowspeed）"""
+        self._send("LTURNL\n")
+        print("RX: DONE (LTURNL)")
+
+    def cmd_lturnr(self) -> None:
+        """低速右旋回（Lowspeed）"""
+        self._send("LTURNR\n")
+        print("RX: DONE (LTURNR)")
+
+    def cmd_lstop(self) -> None:
+        """低速動作停止（Lowspeed）"""
+        self._send("LSTOP\n")
+        print("RX: DONE (LSTOP)")
     
     def cmd_wall(self, enable: bool) -> None:
         """壁制御ON/OFF"""
@@ -289,6 +318,22 @@ def main() -> int:
         mob.cmd_gcal()
         mob.cmd_rdst()
         mob.cmd_rang()
+
+        mob.cmd_lturnl()
+        while True:
+            sen = mob.cmd_sen()
+            if sen is None:
+                print("#Failed to get SEN data during LFWD")
+                continue
+            # 10度(rad=0.1745)回転したら停止
+            if abs(sen['odo_ang']) >= 0.1745:
+                break
+        mob.cmd_lstop()
+
+        time.sleep(1)
+        print("Odo ang = ", mob.cmd_sen()['odo_ang'])
+
+        return
 
         mob.cmd_wall(True)  # 壁センサオン
         for _ in range(2):

@@ -48,6 +48,23 @@ static bool turn_active = false;
 static float turn_goal_angle_rad = 0.0f;
 static float turn_speed_cmd_mps = 0.0f; // 指令速度（加減速制限後）
 
+// 低速動作コマンド（L*）状態
+enum class LatchMode : uint8_t {
+    NONE = 0,
+    FWD,
+    BACK,
+    TURN_L,
+    TURN_R,
+};
+
+static bool latch_active = false;
+static LatchMode latch_mode = LatchMode::NONE;
+static float latch_turn_target_rad = 0.0f;
+
+static constexpr float LATCH_SPEED_MPS = 0.05f;        // 50mm/s（Lowspeed）
+static constexpr float LATCH_TURN_SPEED_MPS = 0.06f;   // 約90deg/s相当（Lowspeed）
+static constexpr float LATCH_TURN_TARGET_RAD = 1000000.0f; // 低速連続旋回の仮想目標角
+
 // ジャイロキャリブレーション状態
 static bool gyro_calib_done_pending = false;  // キャリブレーション完了時にDONEを返す
 
@@ -139,6 +156,10 @@ struct StopCommand {
     float distance_mm;
 };
 
+struct LatchCommand {
+    uint8_t mode; // LatchMode
+};
+
 enum CommandID : uint8_t {
     CMD_SET_MOTOR_SPEED = 0x01,
     CMD_FORWARD = 0x04,
@@ -147,6 +168,8 @@ enum CommandID : uint8_t {
     CMD_RESET_ANGLE = 0x07,
     CMD_TURN = 0x08,
     CMD_GYRO_CALIBRATE = 0x09,
+    CMD_LATCH_START = 0x0A,
+    CMD_LATCH_STOP = 0x0B,
 };
 
 struct Command {
@@ -156,6 +179,7 @@ struct Command {
         ForwardCommand forward;
         StopCommand stop;
         float turn_target_rad;
+        LatchCommand latch;
     } parameter;
 };
 
@@ -211,6 +235,7 @@ void handleForwardCommand(const ForwardCommand& cmd);
 void handleStopCommand(const StopCommand& cmd);
 void handleTurnCommand(float turn_target_rad);
 void processCommandQueue();
+bool updateLatch(float dt_s);
 void updateForward(float dt_s);
 void updateStop(float dt_s);
 void updateTurn(float dt_s);
@@ -227,6 +252,8 @@ void handleSetMotorSpeedCommand(const SetMotorSpeedCommand& cmd) {
     fwd_active = false;
     stop_active = false;
     turn_active = false;
+    latch_active = false;
+    latch_mode = LatchMode::NONE;
     stop_backoff_active = false;
     stop_elapsed_s = 0.0f;
 
@@ -241,6 +268,8 @@ void handleForwardCommand(const ForwardCommand& cmd) {
     fwd_active = true;
     stop_active = false;
     turn_active = false;
+    latch_active = false;
+    latch_mode = LatchMode::NONE;
     stop_backoff_active = false;
     stop_elapsed_s = 0.0f;
 
@@ -278,6 +307,8 @@ void handleStopCommand(const StopCommand& cmd) {
     stop_active = true;
     fwd_active = false;
     turn_active = false;
+    latch_active = false;
+    latch_mode = LatchMode::NONE;
     stop_backoff_active = false;
     stop_elapsed_s = 0.0f;
     stop_backoff_target_dist_mm = 0.0f;
@@ -313,6 +344,8 @@ void handleTurnCommand(float target_rad) {
     // 競合回避: ほかのプロファイルを停止
     fwd_active = false;
     stop_active = false;
+    latch_active = false;
+    latch_mode = LatchMode::NONE;
     stop_backoff_active = false;
     stop_elapsed_s = 0.0f;
 
@@ -370,6 +403,36 @@ void processCommandQueue() {
                 gyro_calib_done_pending = true;
                 break;
 
+            case CMD_LATCH_START: {
+                latch_active = true;
+                latch_mode = static_cast<LatchMode>(q.parameter.latch.mode);
+                latch_turn_target_rad = 0.0f;
+
+                // 競合回避: ほかのプロファイルを停止
+                fwd_active = false;
+                stop_active = false;
+                turn_active = false;
+                stop_backoff_active = false;
+                stop_elapsed_s = 0.0f;
+
+                if (latch_mode == LatchMode::TURN_L || latch_mode == LatchMode::TURN_R) {
+                    latch_turn_target_rad = (latch_mode == LatchMode::TURN_L)
+                        ? +LATCH_TURN_TARGET_RAD
+                        : -LATCH_TURN_TARGET_RAD;
+                    motion.stop();
+                }
+                break;
+            }
+
+            case CMD_LATCH_STOP:
+                latch_active = false;
+                latch_mode = LatchMode::NONE;
+                latch_turn_target_rad = 0.0f;
+                target_vr_mps = 0.0f;
+                target_vl_mps = 0.0f;
+                motion.stop();
+                break;
+
             default:
                 break;
         }
@@ -379,6 +442,39 @@ void processCommandQueue() {
 // ========================================
 // モーション状態更新関数の実装
 // ========================================
+
+bool updateLatch(float dt_s) {
+    (void)dt_s;
+    if (!latch_active) return false;
+
+    switch (latch_mode) {
+        case LatchMode::FWD:
+            target_vr_mps = LATCH_SPEED_MPS;
+            target_vl_mps = LATCH_SPEED_MPS;
+            motion.forward(LATCH_SPEED_MPS, 0.0f);
+            return true;
+
+        case LatchMode::BACK:
+            target_vr_mps = -LATCH_SPEED_MPS;
+            target_vl_mps = -LATCH_SPEED_MPS;
+            motion.backward(LATCH_SPEED_MPS);
+            return true;
+
+        case LatchMode::TURN_L:
+        case LatchMode::TURN_R: {
+            const float s = LATCH_TURN_SPEED_MPS;
+            (void)motion.turn_in_place(s, latch_turn_target_rad);
+            target_vr_mps = (latch_mode == LatchMode::TURN_L) ? +s : -s;
+            target_vl_mps = (latch_mode == LatchMode::TURN_L) ? -s : +s;
+            return true;
+        }
+
+        default:
+            latch_active = false;
+            latch_mode = LatchMode::NONE;
+            return false;
+    }
+}
 
 void updateForward(float dt_s) {
     if (!fwd_active) return;
@@ -619,9 +715,11 @@ void Core0RealtimeTask(void* parameter) {
         const float dt_s = static_cast<float>(time_delta) / 1000.0f;
 
         // 各モーション状態の更新
-        updateForward(dt_s);
-        updateStop(dt_s);
-        updateTurn(dt_s);
+        if (!updateLatch(dt_s)) {
+            updateForward(dt_s);
+            updateStop(dt_s);
+            updateTurn(dt_s);
+        }
 
         // ジャイロキャリブレーション完了チェック
         if (gyro_calib_done_pending && !sensors.is_calibrating()) {
@@ -803,6 +901,55 @@ void loop() {
                 }
             } else {
                 Serial.printf("#Invalid TURN format\n");
+            }
+        } else if (cmd == "LFWD") {
+            // LFWD: 10mm/sでLSTOPまで前進
+            Command q;
+            q.cmd_id = CMD_LATCH_START;
+            q.parameter.latch.mode = static_cast<uint8_t>(LatchMode::FWD);
+            if (xQueueSend(cmd_queue, &q, pdMS_TO_TICKS(10)) == pdTRUE) {
+                Serial.printf("#LFWD\n");
+            } else {
+                Serial.printf("#Queue full!\n");
+            }
+        } else if (cmd == "LBACK") {
+            // LBACK: 10mm/sでLSTOPまで後退
+            Command q;
+            q.cmd_id = CMD_LATCH_START;
+            q.parameter.latch.mode = static_cast<uint8_t>(LatchMode::BACK);
+            if (xQueueSend(cmd_queue, &q, pdMS_TO_TICKS(10)) == pdTRUE) {
+                Serial.printf("#LBACK\n");
+            } else {
+                Serial.printf("#Queue full!\n");
+            }
+        } else if (cmd == "LTURNL") {
+            // LTURNL: 90deg/sでLSTOPまで左旋回
+            Command q;
+            q.cmd_id = CMD_LATCH_START;
+            q.parameter.latch.mode = static_cast<uint8_t>(LatchMode::TURN_L);
+            if (xQueueSend(cmd_queue, &q, pdMS_TO_TICKS(10)) == pdTRUE) {
+                Serial.printf("#LTURNL\n");
+            } else {
+                Serial.printf("#Queue full!\n");
+            }
+        } else if (cmd == "LTURNR") {
+            // LTURNR: 90deg/sでLSTOPまで右旋回
+            Command q;
+            q.cmd_id = CMD_LATCH_START;
+            q.parameter.latch.mode = static_cast<uint8_t>(LatchMode::TURN_R);
+            if (xQueueSend(cmd_queue, &q, pdMS_TO_TICKS(10)) == pdTRUE) {
+                Serial.printf("#LTURNR\n");
+            } else {
+                Serial.printf("#Queue full!\n");
+            }
+        } else if (cmd == "LSTOP") {
+            // LSTOP: L*動作停止
+            Command q;
+            q.cmd_id = CMD_LATCH_STOP;
+            if (xQueueSend(cmd_queue, &q, pdMS_TO_TICKS(10)) == pdTRUE) {
+                Serial.printf("#LSTOP\n");
+            } else {
+                Serial.printf("#Queue full!\n");
             }
         } else if (cmd == "RDST") {
             // 距離リセット（オドメトリ）
