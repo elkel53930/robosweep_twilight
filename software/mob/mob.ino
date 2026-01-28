@@ -65,6 +65,13 @@ static constexpr float LATCH_SPEED_MPS = 0.05f;        // 50mm/s（Lowspeed）
 static constexpr float LATCH_TURN_SPEED_MPS = 0.06f;   // 約90deg/s相当（Lowspeed）
 static constexpr float LATCH_TURN_TARGET_RAD = 1000000.0f; // 低速連続旋回の仮想目標角
 
+// JOGコマンド（距離指定低速動作）状態
+static bool jog_active = false;
+static bool jog_is_forward = true;  // true: 前進, false: 後退
+static float jog_target_dist_mm = 0.0f;
+static float jog_start_dist_mm = 0.0f;
+static constexpr float JOG_SPEED_MPS = 0.05f;  // 50mm/s
+
 // ジャイロキャリブレーション状態
 static bool gyro_calib_done_pending = false;  // キャリブレーション完了時にDONEを返す
 
@@ -160,6 +167,11 @@ struct LatchCommand {
     uint8_t mode; // LatchMode
 };
 
+struct JogCommand {
+    bool is_forward;  // true: 前進, false: 後退
+    float distance_mm;
+};
+
 enum CommandID : uint8_t {
     CMD_SET_MOTOR_SPEED = 0x01,
     CMD_FORWARD = 0x04,
@@ -170,6 +182,7 @@ enum CommandID : uint8_t {
     CMD_GYRO_CALIBRATE = 0x09,
     CMD_LATCH_START = 0x0A,
     CMD_LATCH_STOP = 0x0B,
+    CMD_JOG_START = 0x0C,
 };
 
 struct Command {
@@ -180,6 +193,7 @@ struct Command {
         StopCommand stop;
         float turn_target_rad;
         LatchCommand latch;
+        JogCommand jog;
     } parameter;
 };
 
@@ -236,6 +250,7 @@ void handleStopCommand(const StopCommand& cmd);
 void handleTurnCommand(float turn_target_rad);
 void processCommandQueue();
 bool updateLatch(float dt_s);
+bool updateJog(float dt_s);
 void updateForward(float dt_s);
 void updateStop(float dt_s);
 void updateTurn(float dt_s);
@@ -254,6 +269,7 @@ void handleSetMotorSpeedCommand(const SetMotorSpeedCommand& cmd) {
     turn_active = false;
     latch_active = false;
     latch_mode = LatchMode::NONE;
+    jog_active = false;
     stop_backoff_active = false;
     stop_elapsed_s = 0.0f;
 
@@ -270,6 +286,7 @@ void handleForwardCommand(const ForwardCommand& cmd) {
     turn_active = false;
     latch_active = false;
     latch_mode = LatchMode::NONE;
+    jog_active = false;
     stop_backoff_active = false;
     stop_elapsed_s = 0.0f;
 
@@ -309,6 +326,7 @@ void handleStopCommand(const StopCommand& cmd) {
     turn_active = false;
     latch_active = false;
     latch_mode = LatchMode::NONE;
+    jog_active = false;
     stop_backoff_active = false;
     stop_elapsed_s = 0.0f;
     stop_backoff_target_dist_mm = 0.0f;
@@ -346,6 +364,7 @@ void handleTurnCommand(float target_rad) {
     stop_active = false;
     latch_active = false;
     latch_mode = LatchMode::NONE;
+    jog_active = false;
     stop_backoff_active = false;
     stop_elapsed_s = 0.0f;
 
@@ -433,6 +452,22 @@ void processCommandQueue() {
                 motion.stop();
                 break;
 
+            case CMD_JOG_START:
+                jog_active = true;
+                jog_is_forward = q.parameter.jog.is_forward;
+                jog_target_dist_mm = q.parameter.jog.distance_mm;
+                jog_start_dist_mm = sensors.get_distance();
+
+                // 競合回避: ほかのプロファイルを停止
+                fwd_active = false;
+                stop_active = false;
+                turn_active = false;
+                latch_active = false;
+                latch_mode = LatchMode::NONE;
+                stop_backoff_active = false;
+                stop_elapsed_s = 0.0f;
+                break;
+
             default:
                 break;
         }
@@ -474,6 +509,38 @@ bool updateLatch(float dt_s) {
             latch_mode = LatchMode::NONE;
             return false;
     }
+}
+
+bool updateJog(float dt_s) {
+    (void)dt_s;
+    if (!jog_active) return false;
+
+    const float current_dist_mm = sensors.get_distance();
+    const float traveled_mm = fabsf(current_dist_mm - jog_start_dist_mm);  // 絶対値を取る
+    const float remaining_mm = jog_target_dist_mm - traveled_mm;
+
+    // 目標距離到達判定（±2mm許容）
+    if (remaining_mm <= 2.0f) {
+        jog_active = false;
+        target_vr_mps = 0.0f;
+        target_vl_mps = 0.0f;
+        motion.stop();
+        Serial.printf("DONE\n");
+        return true;
+    }
+
+    // 低速で前進または後退
+    if (jog_is_forward) {
+        target_vr_mps = JOG_SPEED_MPS;
+        target_vl_mps = JOG_SPEED_MPS;
+        motion.forward(JOG_SPEED_MPS, 0.0f);
+    } else {
+        target_vr_mps = -JOG_SPEED_MPS;
+        target_vl_mps = -JOG_SPEED_MPS;
+        motion.backward(JOG_SPEED_MPS);
+    }
+
+    return true;
 }
 
 void updateForward(float dt_s) {
@@ -715,7 +782,7 @@ void Core0RealtimeTask(void* parameter) {
         const float dt_s = static_cast<float>(time_delta) / 1000.0f;
 
         // 各モーション状態の更新
-        if (!updateLatch(dt_s)) {
+        if (!updateLatch(dt_s) && !updateJog(dt_s)) {
             updateForward(dt_s);
             updateStop(dt_s);
             updateTurn(dt_s);
@@ -950,6 +1017,40 @@ void loop() {
                 Serial.printf("#LSTOP\n");
             } else {
                 Serial.printf("#Queue full!\n");
+            }
+        } else if (cmd.startsWith("JOGFWD,")) {
+            // JOGFWD: 低速で指定距離前進 JOGFWD,<distance_mm>
+            int comma1 = cmd.indexOf(',');
+            if (comma1 > 0) {
+                Command q;
+                q.cmd_id = CMD_JOG_START;
+                q.parameter.jog.is_forward = true;
+                q.parameter.jog.distance_mm = cmd.substring(comma1 + 1).toFloat();
+
+                if (xQueueSend(cmd_queue, &q, pdMS_TO_TICKS(10)) == pdTRUE) {
+                    Serial.printf("#JOGFWD dist=%.1fmm\n", q.parameter.jog.distance_mm);
+                } else {
+                    Serial.printf("#Queue full!\n");
+                }
+            } else {
+                Serial.printf("#Invalid JOGFWD format\n");
+            }
+        } else if (cmd.startsWith("JOGBACK,")) {
+            // JOGBACK: 低速で指定距離後退 JOGBACK,<distance_mm>
+            int comma1 = cmd.indexOf(',');
+            if (comma1 > 0) {
+                Command q;
+                q.cmd_id = CMD_JOG_START;
+                q.parameter.jog.is_forward = false;
+                q.parameter.jog.distance_mm = cmd.substring(comma1 + 1).toFloat();
+
+                if (xQueueSend(cmd_queue, &q, pdMS_TO_TICKS(10)) == pdTRUE) {
+                    Serial.printf("#JOGBACK dist=%.1fmm\n", q.parameter.jog.distance_mm);
+                } else {
+                    Serial.printf("#Queue full!\n");
+                }
+            } else {
+                Serial.printf("#Invalid JOGBACK format\n");
             }
         } else if (cmd == "RDST") {
             // 距離リセット（オドメトリ）

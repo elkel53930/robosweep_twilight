@@ -160,6 +160,18 @@ class MobileBase:
         self._send("LSTOP\n")
         print("RX: DONE (LSTOP)")
     
+    def cmd_jogfwd(self, distance_mm: float) -> None:
+        """低速で指定距離前進（JOG）"""
+        self._send(f"JOGFWD,{distance_mm}\n")
+        self._wait_done()
+        print("RX: DONE (JOGFWD)")
+    
+    def cmd_jogback(self, distance_mm: float) -> None:
+        """低速で指定距離後退（JOG）"""
+        self._send(f"JOGBACK,{distance_mm}\n")
+        self._wait_done()
+        print("RX: DONE (JOGBACK)")
+    
     def cmd_wall(self, enable: bool) -> None:
         """壁制御ON/OFF"""
         val = 1 if enable else 0
@@ -205,6 +217,46 @@ class MobileBase:
                         break
         return None
     
+    def _front_wall_correction(self) -> None:
+        sen = self.cmd_sen()
+        if not sen:
+            return # センサーデータ取得失敗
+        lf = sen['lf']
+        rf = sen['rf']
+        print("#Front wall sensors: lf =", lf, "rf =", rf)
+        if sen['lf'] < 100 or sen['rf'] < 100:
+            return #壁がない
+        
+        print("#Starting front wall correction...")
+
+        # 前後補正
+
+        lf_rate = lf / LF_BASE
+        rf_rate = rf / RF_BASE
+
+        if (lf_rate+rf_rate) / 2 > 1.0:
+            print("#Too close to front wall: backing up")
+            # 前方近すぎ：後退
+            self.cmd_jogback(10)
+        elif (lf_rate+rf_rate) / 2 < 0.9:
+            print("#Too far from front wall: moving forward")
+            # 前方遠すぎ：前進
+            self.cmd_jogfwd(10)
+        
+        time.sleep(0.1)
+
+        # 旋回補正
+        if lf_rate > rf_rate * 1.03:
+            # 左壁が近すぎ：右旋回
+            print("#Correcting orientation: turning right")
+            self.cmd_turn(-0.1)
+        elif rf_rate > lf_rate * 1.03:
+            # 右壁が近すぎ：左旋回
+            print("#Correcting orientation: turning left")
+            self.cmd_turn(0.1)
+
+        time.sleep(0.1)
+    
     def start(self) -> None:
         """マス中央から走り出す"""
         self.cmd_fwd(FWD_SPEED, FWD_ACC, 90)
@@ -212,12 +264,14 @@ class MobileBase:
     def go_right(self) -> None:
         """右90度旋回"""
         self.cmd_stop(FWD_SPEED, FWD_ACC, 90)
+#        self._front_wall_correction()
         self.cmd_turn(TURN_R)
         self.start()
     
     def go_left(self) -> None:
         """左90度旋回"""
         self.cmd_stop(FWD_SPEED, FWD_ACC, 90)
+#        self._front_wall_correction()
         self.cmd_turn(TURN_L)
         self.start()
     
@@ -232,6 +286,7 @@ class MobileBase:
     def go_back(self) -> None:
         """戻る"""
         self.cmd_stop(FWD_SPEED, FWD_ACC, 90)
+#        self._front_wall_correction()
         self.cmd_turn(self.turn_dir * pi)
         self.turn_dir *= -1  # 方向反転
         self.start()
@@ -318,25 +373,9 @@ def main() -> int:
         mob.cmd_gcal()
         mob.cmd_rdst()
         mob.cmd_rang()
-
-        mob.cmd_lturnl()
-        while True:
-            sen = mob.cmd_sen()
-            if sen is None:
-                print("#Failed to get SEN data during LFWD")
-                continue
-            # 10度(rad=0.1745)回転したら停止
-            if abs(sen['odo_ang']) >= 0.1745:
-                break
-        mob.cmd_lstop()
-
-        time.sleep(1)
-        print("Odo ang = ", mob.cmd_sen()['odo_ang'])
-
-        return
-
         mob.cmd_wall(True)  # 壁センサオン
-        for _ in range(2):
+
+        for _ in range(5):
             mob.start()
             mob.go_right()
             mob.go_right()
