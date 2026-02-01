@@ -35,6 +35,8 @@ class MobileBase:
     
     def __init__(self, ser: serial.Serial, timeout: float = 5.0):
         self.ser = ser
+        self.ser.reset_input_buffer()
+        self.ser.reset_output_buffer()
         self.timeout = timeout
         self.turn_dir = 1  # -1:右回り、1:左回り
     
@@ -100,10 +102,82 @@ class MobileBase:
         tail = "\n".join(buf[-50:])
         raise TimeoutError(f"Timed out waiting for DONE (last lines):\n{tail}\n")
     
+    def _wait_qstp_done(self) -> float:
+        """QSTPDONE応答を待機して残距離を返す"""
+        deadline = time.time() + self.timeout
+        buf = []
+
+        while time.time() < deadline:
+            time.sleep(0.01)  # small delay to allow response
+            try:
+                raw = self.ser.readline()
+            except serial.SerialException as e:
+                # USB device temporary glitch - wait and retry
+                print(f"#Serial error: {e}, retrying...")
+                time.sleep(0.1)
+                try:
+                    self.ser.reset_input_buffer()
+                except:
+                    pass
+                continue
+            if not raw:
+                continue
+
+            # Decode line safely
+            line = raw.decode("ascii", errors="replace").rstrip("\r\n")
+
+            # strip embedded NULs / control chars just in case
+            if "\x00" in line:
+                line = line.replace("\x00", "")
+            line = "".join(ch for ch in line if (ch >= " " or ch == "\t"))
+
+            line = line.strip()
+            if not line:
+                continue
+
+            # Ignore sensor spam
+            if line.startswith("SEN,"):
+                continue
+
+            # Display messages starting with #
+            if line.startswith("#"):
+                print(line)
+
+            # Accept QSTPDONE,{remaining_distance}
+            if line.startswith("QSTPDONE,"):
+                try:
+                    parts = line.split(",")
+                    if len(parts) >= 2:
+                        remaining_dist = float(parts[1])
+                        return remaining_dist
+                except (ValueError, IndexError) as e:
+                    print(f"#Failed to parse QSTPDONE response: {line} ({e})")
+                    break
+
+            # Keep recent non-SEN lines to help diagnose timeouts
+            buf.append(line)
+
+        tail = "\n".join(buf[-50:])
+        raise TimeoutError(f"Timed out waiting for QSTPDONE (last lines):\n{tail}\n")
+    
     def cmd_gcal(self) -> None:
         """ジャイロキャリブレーション"""
         self._send("GCAL\n")
         time.sleep(1)  # キャリブレーション待機
+    
+    def cmd_qstp(self) -> float:
+        """クイック停止コマンド
+        
+        Returns:
+            float: 元の目標距離からの残距離 [mm]
+                  正の値: 目標までの残距離
+                  負の値: 目標を超過した距離
+                  0.0: 目標がなかった場合
+        """
+        self._send("QSTP\n")
+        remaining_dist = self._wait_qstp_done()
+        print(f"RX: QSTPDONE,{remaining_dist} (QSTP)")
+        return remaining_dist
     
     def cmd_rdst(self) -> None:
         """距離リセット"""
@@ -365,9 +439,6 @@ def main() -> int:
 
     ser = serial.Serial(port=args.port, baudrate=args.baud, timeout=0.1)
     try:
-        ser.reset_input_buffer()
-        ser.reset_output_buffer()
-
         mob = MobileBase(ser, timeout=args.timeout)
 
         mob.cmd_gcal()

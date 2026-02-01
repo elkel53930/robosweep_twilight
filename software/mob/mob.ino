@@ -75,6 +75,13 @@ static constexpr float JOG_SPEED_MPS = 0.05f;  // 50mm/s
 // ジャイロキャリブレーション状態
 static bool gyro_calib_done_pending = false;  // キャリブレーション完了時にDONEを返す
 
+// QSTPコマンド（クイック停止）状態
+static bool qstp_active = false;
+static float qstp_v_cmd_mmps = 0.0f;      // 現在指令速度 [mm/s]
+static float qstp_target_angle_rad = 0.0f; // 目標角度 [rad] （角度フィードバック用）
+static float qstp_original_goal_dist_mm = 0.0f; // 元の目標距離 [mm]（FWD/STOPの目標）
+static constexpr float QSTP_DECEL_MMPS2 = 2000.0f;  // QSTP時の最大減速度 [mm/s^2]
+
 // 角度制御パラメータ（簡易P + 速度制限）
 static constexpr float TURN_KP_MPS_PER_RAD = 0.35f;   // [m/s]/rad
 static constexpr float TURN_MAX_SPEED_MPS = 0.25f;
@@ -183,6 +190,7 @@ enum CommandID : uint8_t {
     CMD_LATCH_START = 0x0A,
     CMD_LATCH_STOP = 0x0B,
     CMD_JOG_START = 0x0C,
+    CMD_QSTP = 0x0D,
 };
 
 struct Command {
@@ -248,12 +256,14 @@ void handleSetMotorSpeedCommand(const SetMotorSpeedCommand& cmd);
 void handleForwardCommand(const ForwardCommand& cmd);
 void handleStopCommand(const StopCommand& cmd);
 void handleTurnCommand(float turn_target_rad);
+void handleQstpCommand();
 void processCommandQueue();
 bool updateLatch(float dt_s);
 bool updateJog(float dt_s);
 void updateForward(float dt_s);
 void updateStop(float dt_s);
 void updateTurn(float dt_s);
+bool updateQstp(float dt_s);
 
 // ========================================
 // コマンド処理関数の実装
@@ -270,6 +280,7 @@ void handleSetMotorSpeedCommand(const SetMotorSpeedCommand& cmd) {
     latch_active = false;
     latch_mode = LatchMode::NONE;
     jog_active = false;
+    qstp_active = false;
     stop_backoff_active = false;
     stop_elapsed_s = 0.0f;
 
@@ -287,6 +298,7 @@ void handleForwardCommand(const ForwardCommand& cmd) {
     latch_active = false;
     latch_mode = LatchMode::NONE;
     jog_active = false;
+    qstp_active = false;
     stop_backoff_active = false;
     stop_elapsed_s = 0.0f;
 
@@ -355,6 +367,41 @@ void handleStopCommand(const StopCommand& cmd) {
     }
 }
 
+void handleQstpCommand() {
+    // QSTP: クイック停止（現在の速度から最大減速度で停止）
+    
+    // 元の目標距離を記録（FWDまたはSTOPが実行中の場合）
+    qstp_original_goal_dist_mm = 0.0f;  // デフォルト値
+    if (fwd_active) {
+        qstp_original_goal_dist_mm = fwd_goal_dist_mm;
+    } else if (stop_active) {
+        qstp_original_goal_dist_mm = stop_goal_dist_mm;
+    }
+    
+    qstp_active = true;
+    fwd_active = false;
+    stop_active = false;
+    turn_active = false;
+    latch_active = false;
+    latch_mode = LatchMode::NONE;
+    jog_active = false;
+    stop_backoff_active = false;
+    stop_elapsed_s = 0.0f;
+    
+    // 現在の指令速度を取得
+    qstp_v_cmd_mmps = ((target_vr_mps + target_vl_mps) * 0.5f) * 1000.0f;
+    if (qstp_v_cmd_mmps < 0.0f) {
+        qstp_v_cmd_mmps = -qstp_v_cmd_mmps;  // 絶対値にする
+    }
+    
+    // 目標角度を現在の角度に設定（まっすぐ停止する）
+    qstp_target_angle_rad = sensors.get_angle();
+    
+    char msg[64];
+    snprintf(msg, sizeof(msg), "#QSTP: from %.1fmm/s\n", qstp_v_cmd_mmps);
+    enqueue_msg_line(msg);
+}
+
 void handleTurnCommand(float target_rad) {
     // TURN: その場旋回（角度のみ）
     turn_active = true;
@@ -365,6 +412,7 @@ void handleTurnCommand(float target_rad) {
     latch_active = false;
     latch_mode = LatchMode::NONE;
     jog_active = false;
+    qstp_active = false;
     stop_backoff_active = false;
     stop_elapsed_s = 0.0f;
 
@@ -422,6 +470,10 @@ void processCommandQueue() {
                 gyro_calib_done_pending = true;
                 break;
 
+            case CMD_QSTP:
+                handleQstpCommand();
+                break;
+
             case CMD_LATCH_START: {
                 latch_active = true;
                 latch_mode = static_cast<LatchMode>(q.parameter.latch.mode);
@@ -431,6 +483,7 @@ void processCommandQueue() {
                 fwd_active = false;
                 stop_active = false;
                 turn_active = false;
+                qstp_active = false;
                 stop_backoff_active = false;
                 stop_elapsed_s = 0.0f;
 
@@ -447,6 +500,7 @@ void processCommandQueue() {
                 latch_active = false;
                 latch_mode = LatchMode::NONE;
                 latch_turn_target_rad = 0.0f;
+                qstp_active = false;
                 target_vr_mps = 0.0f;
                 target_vl_mps = 0.0f;
                 motion.stop();
@@ -464,6 +518,7 @@ void processCommandQueue() {
                 turn_active = false;
                 latch_active = false;
                 latch_mode = LatchMode::NONE;
+                qstp_active = false;
                 stop_backoff_active = false;
                 stop_elapsed_s = 0.0f;
                 break;
@@ -756,6 +811,61 @@ void updateTurn(float dt_s) {
     }
 }
 
+bool updateQstp(float dt_s) {
+    if (!qstp_active) return false;
+
+    // 現在速度が十分低ければ停止完了
+    if (qstp_v_cmd_mmps <= 5.0f) {
+        qstp_active = false;
+        target_vr_mps = 0.0f;
+        target_vl_mps = 0.0f;
+        motion.stop();
+        
+        // 目標距離との差分を計算してQSTPDONEコマンドで送り返す
+        float remaining_dist = 0.0f;
+        if (qstp_original_goal_dist_mm > 0.0f) {
+            const float current_dist = sensors.get_distance();
+            remaining_dist = qstp_original_goal_dist_mm - current_dist;
+        }
+        
+        char msg[64];
+        snprintf(msg, sizeof(msg), "QSTPDONE,%.1f\n", remaining_dist);
+        enqueue_msg_line(msg);
+        
+        return false;
+    }
+
+    // 最大減速度で減速
+    const float decel_delta = QSTP_DECEL_MMPS2 * dt_s;
+    qstp_v_cmd_mmps -= decel_delta;
+    if (qstp_v_cmd_mmps < 0.0f) {
+        qstp_v_cmd_mmps = 0.0f;
+    }
+
+    const float v_cmd_mps = qstp_v_cmd_mmps / 1000.0f;
+
+    // 角度フィードバック: 現在角度と目標角度の差分
+    const float angle_error = sensors.get_angle() - qstp_target_angle_rad;
+    const float angle_correction = ANGLE_FB_GAIN * angle_error;
+
+    // 角速度フィードバック: 角速度をゼロに保つ
+    const float gyro_z = sensors.get_gyro_z();
+    const float rate_correction = ANGULAR_RATE_FB_GAIN * gyro_z;
+    
+    // 壁センサフィードバック
+    const float wall_correction = calculate_wall_correction(sensors);
+
+    // 最終速度計算: 車輪の速度差で補正
+    const float vr = v_cmd_mps - angle_correction - rate_correction + wall_correction;
+    const float vl = v_cmd_mps + angle_correction + rate_correction - wall_correction;
+
+    target_vr_mps = vr;
+    target_vl_mps = vl;
+    motion.forward((vr + vl) * 0.5f, 0.0f);
+    
+    return true;
+}
+
 // ========================================
 // Core0 リアルタイムタスク
 // ========================================
@@ -783,9 +893,11 @@ void Core0RealtimeTask(void* parameter) {
 
         // 各モーション状態の更新
         if (!updateLatch(dt_s) && !updateJog(dt_s)) {
-            updateForward(dt_s);
-            updateStop(dt_s);
-            updateTurn(dt_s);
+            if (!updateQstp(dt_s)) {
+                updateForward(dt_s);
+                updateStop(dt_s);
+                updateTurn(dt_s);
+            }
         }
 
         // ジャイロキャリブレーション完了チェック
@@ -1076,6 +1188,15 @@ void loop() {
             q.cmd_id = CMD_GYRO_CALIBRATE;
             if (xQueueSend(cmd_queue, &q, pdMS_TO_TICKS(10)) == pdTRUE) {
                 Serial.printf("#GCAL\n");
+            } else {
+                Serial.printf("#Queue full!\n");
+            }
+        } else if (cmd == "QSTP") {
+            // クイック停止
+            Command q;
+            q.cmd_id = CMD_QSTP;
+            if (xQueueSend(cmd_queue, &q, pdMS_TO_TICKS(10)) == pdTRUE) {
+                Serial.printf("#QSTP\n");
             } else {
                 Serial.printf("#Queue full!\n");
             }
