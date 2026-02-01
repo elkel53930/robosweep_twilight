@@ -16,7 +16,7 @@ class FutabaServo:
     ADDR_GOAL_POSITION = 0x1E
     ADDR_GOAL_TIME = 0x20
     
-    def __init__(self, port='/dev/ttyAMA0', baudrate=115200, timeout=0.1):
+    def __init__(self, port='/dev/ttyAMA0', baudrate=115200, timeout=0.1, min_angle=-90.0, max_angle=45.0):
         """
         初期化
         
@@ -24,7 +24,12 @@ class FutabaServo:
             port: シリアルポート (Raspberry Pi 5では /dev/ttyAMA0)
             baudrate: 通信速度 (デフォルト: 115200bps)
             timeout: タイムアウト時間
+            min_angle: 最小角度 [度] (デフォルト: -90.0)
+            max_angle: 最大角度 [度] (デフォルト: 45.0)
         """
+        self.min_angle = min_angle
+        self.max_angle = max_angle
+        
         self.ser = serial.Serial(
             port=port,
             baudrate=baudrate,
@@ -114,9 +119,13 @@ class FutabaServo:
         # 角度を0.1度単位の整数に変換
         angle_value = int(angle * 10)
         
-        # 範囲チェック
+        # 範囲チェック（設定された角度リミットを使用）
+        if angle < self.min_angle or angle > self.max_angle:
+            raise ValueError(f"角度が範囲外です: {angle}度 ({self.min_angle}度〜{self.max_angle}度まで)")
+        
+        # サーボの物理的制限チェック
         if angle_value < -1500 or angle_value > 1500:
-            raise ValueError(f"角度が範囲外です: {angle}度 (±150.0度まで)")
+            raise ValueError(f"角度がサーボの物理的制限を超えています: {angle}度 (±150.0度まで)")
         
         # 2の補数表現に変換（負の値の場合）
         if angle_value < 0:
@@ -151,8 +160,6 @@ class FutabaServo:
 
 
 def main():
-    """メイン処理（デモンストレーション）"""
-    
     print("Futaba Servo Controller for Raspberry Pi 5")
     print("=" * 50)
     
@@ -162,45 +169,85 @@ def main():
     
     try:
         print(f"サーボID {servo_id} を制御します")
+        print(f"角度範囲: {servo.min_angle} ～ {servo.max_angle}度")
+        print("コマンド:")
+        print("  数値: 角度を指定して移動")
+        print("  'on': トルクON")
+        print("  'off': トルクOFF")
+        print("  'brake': ブレーキモード")
+        print("  'q': 終了")
+        print()
         
-        # トルクON
-        print("トルクON...")
-        servo.set_torque(servo_id, True)
-        time.sleep(1)
-        
-        # +90度へ移動
-        print("角度: +90.0度へ移動")
-        servo.set_position(servo_id, 90.0, move_time=100)
-        time.sleep(1.5)
-        
-        # 0度へ移動
-        print("角度: 0.0度へ移動")
-        servo.set_position(servo_id, 0.0, move_time=100)
-        time.sleep(1.5)
-        
-        # -90度へ移動
-        print("角度: -90.0度へ移動")
-        servo.set_position(servo_id, -90.0, move_time=100)
-        time.sleep(1.5)
-        
-        # 0度へ戻る
-        print("角度: 0.0度へ移動")
-        servo.set_position(servo_id, 0.0, move_time=100)
-        time.sleep(1.5)
-        
-        # -90度へ移動
-        print("角度: -90.0度へ移動")
-        servo.set_position(servo_id, -90.0, move_time=100)
-        time.sleep(1.5)
-        
-        # -90度へ移動
-        print("角度: -90.0度へ移動")
-        servo.set_position(servo_id, 90.0, move_time=100)
-        time.sleep(1.5)
-        
-        # トルクOFF
-        print("トルクOFF...")
+        # 初期状態はトルクOFF
+        print("初期状態: トルクOFF")
         servo.set_torque(servo_id, False)
+        torque_enabled = False
+        time.sleep(0.5)
+        
+        while True:
+            try:
+                # コマンド入力を受け付ける
+                status = "ON" if torque_enabled else "OFF"
+                command = input(f"コマンドを入力してください [トルク: {status}]: ").strip()
+                
+                # 終了チェック
+                if command.lower() in ['q', 'quit', 'exit']:
+                    break
+                
+                # トルクON/OFF制御
+                if command.lower() in ['on', 'enable']:
+                    print("トルクON...")
+                    servo.set_torque(servo_id, True)
+                    torque_enabled = True
+                    time.sleep(0.5)
+                    print("トルクON完了")
+                    continue
+                elif command.lower() in ['off', 'disable']:
+                    print("トルクOFF...")
+                    servo.set_torque(servo_id, False)
+                    torque_enabled = False
+                    time.sleep(0.5)
+                    print("トルクOFF完了")
+                    continue
+                elif command.lower() == 'brake':
+                    print("ブレーキモード設定...")
+                    servo.set_brake_mode(servo_id)
+                    torque_enabled = True  # ブレーキモードはトルク有効状態
+                    time.sleep(0.5)
+                    print("ブレーキモード設定完了")
+                    continue
+                
+                # 角度を数値に変換
+                try:
+                    angle = float(command)
+                except ValueError:
+                    print("エラー: 数値、'on'、'off'、'brake'、'q'のいずれかを入力してください")
+                    continue
+                
+                # トルクが有効でない場合は警告
+                if not torque_enabled:
+                    print("警告: トルクがOFFです。角度移動前に 'on' でトルクをONにしてください。")
+                    continue
+                
+                # サーボを指定角度に移動
+                try:
+                    print(f"角度: {angle:.1f}度へ移動中...")
+                    servo.set_position(servo_id, angle, move_time=1000)
+                    time.sleep(1.5)  # 移動完了待ち
+                    print(f"移動完了: {angle:.1f}度")
+                    print()
+                except ValueError as e:
+                    print(f"エラー: {e}")
+                    continue
+                
+            except KeyboardInterrupt:
+                print("\n中断されました")
+                break
+        
+        # 終了時はトルクOFF
+        if torque_enabled:
+            print("トルクOFF...")
+            servo.set_torque(servo_id, False)
         
         print("完了！")
         
