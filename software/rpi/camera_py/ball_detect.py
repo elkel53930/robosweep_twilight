@@ -5,6 +5,7 @@ from picamera2 import Picamera2
 import cv2
 import numpy as np
 from skimage.measure import CircleModel, ransac
+from typing import Tuple
 
 
 class BallDetect:
@@ -258,6 +259,123 @@ class BallDetect:
         if self.debug:
             cv2.destroyWindow("BallDetect - Debug")
 
+    def calc_angle_distance(self, diameter: int, x: int, y: int) -> Tuple[float, float]:
+        """
+        画像上のボール情報からロボット中心からの角度と距離を計算
+        
+        Args:
+            diameter: 画像上のボールの直径 [pixels]
+            x: ボール中心のx座標 [pixels] (0が左端)
+            y: ボール中心のy座標 [pixels] (0が上端)
+        
+        Returns:
+            (angle, distance): 
+                angle - ロボット正面からの角度 [degrees] (右回りが正)
+                distance - ロボット中心からボール中心までの水平距離 [mm]
+        """
+        
+        # ===== カメラ・センサーの仕様 =====
+        # IMX708センサーサイズ
+        SENSOR_WIDTH = 7.4   # mm
+        SENSOR_HEIGHT = 5.6  # mm
+        
+        # 画像解像度
+        IMG_WIDTH = 640      # pixels
+        IMG_HEIGHT = 360     # pixels
+        
+        # 画角
+        FOV_H = 102  # degrees (horizontal)
+        FOV_V = 67   # degrees (vertical)
+        
+        # ボールの実際の直径
+        BALL_DIAMETER = 70   # mm
+        BALL_RADIUS = 35     # mm
+        
+        # カメラの取り付け位置(ロボット座標系)
+        CAM_POS_X = 0        # mm (中心から右方向)
+        CAM_POS_Y = 28       # mm (中心から前方向)
+        CAM_POS_Z = 90       # mm (中心から上方向)
+        
+        # カメラの傾き
+        TILT_ANGLE = 25      # degrees (下向き)
+        
+        # ===== 焦点距離の計算(ピクセル単位) =====
+        # 画角から焦点距離を逆算
+        fx = (IMG_WIDTH / 2) / np.tan(np.radians(FOV_H / 2))
+        fy = (IMG_HEIGHT / 2) / np.tan(np.radians(FOV_V / 2))
+        
+        # 画像中心
+        cx = IMG_WIDTH / 2
+        cy = IMG_HEIGHT / 2
+        
+        # ===== Step 1: 画像座標をカメラ座標系の方向ベクトルに変換 =====
+        # 正規化座標
+        x_norm = (x - cx) / fx
+        y_norm = (y - cy) / fy
+        
+        # カメラ座標系の方向ベクトル(正規化前)
+        # カメラ座標系: X=右, Y=下, Z=光軸方向
+        v_cam = np.array([x_norm, y_norm, 1.0])
+        # 正規化
+        v_cam = v_cam / np.linalg.norm(v_cam)
+        
+        # ===== Step 2: カメラ座標系からロボット座標系への変換 =====
+        # ロボット座標系: X=右, Y=前, Z=上
+        # カメラはY軸(前方)から下向き25度回転
+        
+        # 回転角(ラジアン)
+        theta = np.radians(TILT_ANGLE)
+        cos_theta = np.cos(theta)
+        sin_theta = np.sin(theta)
+        
+        # カメラ座標系の各軸をロボット座標系で表現
+        # X_cam: 右方向(ロボットと同じ)
+        X_cam = np.array([1, 0, 0])
+        # Z_cam: 光軸(前方から下向き25度)
+        Z_cam = np.array([0, cos_theta, -sin_theta])
+        # Y_cam: Z_cam × X_cam
+        Y_cam = np.cross(Z_cam, X_cam)
+        
+        # 回転行列(カメラ→ロボット)
+        R = np.column_stack([X_cam, Y_cam, Z_cam])
+        
+        # カメラ座標系の方向ベクトルをロボット座標系に変換
+        v_robot = R @ v_cam
+        
+        # ===== Step 3: 地面(ボール中心の高さ)との交点を計算 =====
+        # 光線の方程式: P(t) = P_camera + t * v_robot
+        # ボールの中心の高さ = BALL_RADIUS (地面から35mm)
+        # P_camera[2] + t * v_robot[2] = BALL_RADIUS
+        
+        if v_robot[2] >= 0:
+            # カメラが上向き→ボールは見えないはず
+            return (0.0, 0.0)
+        
+        t = (BALL_RADIUS - CAM_POS_Z) / v_robot[2]
+        
+        # ボールの位置(ロボット座標系)
+        P_ball = np.array([CAM_POS_X, CAM_POS_Y, CAM_POS_Z]) + t * v_robot
+        
+        # ===== Step 4: 距離と角度の計算 =====
+        # 水平距離(XY平面)
+        distance = np.sqrt(P_ball[0]**2 + P_ball[1]**2)
+        
+        # 角度(度) - 正面が0度、右回りが正
+        angle = np.degrees(np.arctan2(P_ball[0], P_ball[1]))
+        
+        # ===== オプション: 直径による距離検証 =====
+        # カメラからボールまでの3D距離
+        d_3d = t
+        
+        # 期待される画像上の直径(pixels)
+        # 投影された直径は角度によって変わるが、近似的に計算
+        pixel_size = SENSOR_WIDTH / IMG_WIDTH  # mm/pixel
+        expected_diameter = (fx * BALL_DIAMETER) / d_3d
+        
+        # 実際の直径と期待値の比較(デバッグ用)
+        # print(f"Expected diameter: {expected_diameter:.1f} px, Actual: {diameter} px")
+        
+        return (angle, distance)
 
 def main():
     """
@@ -287,9 +405,15 @@ def main():
             
             # 結果を表示（デバッグモードなら画像も表示される）
             if result is not None:
-                print(f"Detected: center={result['center']}, "
-                      f"radius={result['radius']:.1f}, "
-                      f"confidence={result['confidence']:.2f}")
+                angle, distance = detector.calc_angle_distance(
+                    diameter=int(round(result['radius'] * 2)),
+                    x=result['center'][0],
+                    y=result['center'][1]
+                )
+                print(f"Detected: pos={result['center']}, "
+                      f"r={result['radius']:.1f}, "
+                      f"conf={result['confidence']:.2f}",
+                      f"ang={angle:.1f} deg, dist={distance:.1f} mm")
             
             # ESCキーで終了
             key = cv2.waitKey(1) & 0xFF
