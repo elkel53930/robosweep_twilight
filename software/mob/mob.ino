@@ -80,7 +80,7 @@ static bool qstp_active = false;
 static float qstp_v_cmd_mmps = 0.0f;      // 現在指令速度 [mm/s]
 static float qstp_target_angle_rad = 0.0f; // 目標角度 [rad] （角度フィードバック用）
 static float qstp_original_goal_dist_mm = 0.0f; // 元の目標距離 [mm]（FWD/STOPの目標）
-static constexpr float QSTP_DECEL_MMPS2 = 2000.0f;  // QSTP時の最大減速度 [mm/s^2]
+static constexpr float QSTP_DECEL_MMPS2 = 1000.0f;  // QSTP時の最大減速度 [mm/s^2]
 
 // 角度制御パラメータ（簡易P + 速度制限）
 static constexpr float TURN_KP_MPS_PER_RAD = 0.35f;   // [m/s]/rad
