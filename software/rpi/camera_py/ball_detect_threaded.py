@@ -63,10 +63,6 @@ class BallDetectThread:
         self.running = True
         self.thread = threading.Thread(target=self._thread_loop, daemon=True)
         self.thread.start()
-        
-        # カメラのウォームアップ（露光・ホワイトバランス調整）
-        print("#BallDetect: カメラのウォームアップ中...")
-        time.sleep(2.0)  # 2秒待機してカメラを安定させる
     
     def stop(self):
         """スレッドを停止"""
