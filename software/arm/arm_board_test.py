@@ -244,7 +244,7 @@ class ArmBoardTester:
 if __name__ == "__main__":
     import sys
     
-    tester = ArmBoardTester()
+    tester = ArmBoardTester(port='/dev/ttyUSB0')
     
     if len(sys.argv) > 1:
         test_mode = sys.argv[1]

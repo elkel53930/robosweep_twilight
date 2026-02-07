@@ -7,6 +7,7 @@ import time
 import sys
 import os
 import threading
+import argparse
 from collections import deque
 from datetime import datetime
 from arm_board_controller import ArmBoardController
@@ -360,12 +361,34 @@ def create_sample_file():
 	return filename
 
 def main():
+	# コマンドライン引数のパース
+	parser = argparse.ArgumentParser(
+		description='Arduino Servo Controller - Interactive Mode',
+		formatter_class=argparse.RawDescriptionHelpFormatter,
+		epilog='''
+Examples:
+  %(prog)s                    # Default port (/dev/ttyUSB0)
+  %(prog)s -p /dev/ttyUSB1    # Specify port
+  %(prog)s --port COM3        # Windows port example
+		''')
+	
+	parser.add_argument('-p', '--port', 
+						default='/dev/ttyUSB0',
+						help='Serial port for Arduino connection (default: /dev/ttyUSB0)')
+	
+	args = parser.parse_args()
+	
 	print("Arduino Servo Controller - Interactive Mode")
+	print(f"Using port: {args.port}")
 	
 	# Arduinoに接続
-	controller = ArmBoardController()
+	controller = ArmBoardController(port=args.port)
 	if not controller.connect():
-		print("Failed to connect to Arduino")
+		print(f"Failed to connect to Arduino on {args.port}")
+		print("Available options:")
+		print("  - Check if the device is connected")
+		print("  - Try different port with -p option")
+		print("  - Check permissions (may need sudo or add user to dialout group)")
 		return
 	
 	print("Connected to Arduino!")
