@@ -6,6 +6,7 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 
 MAZE_SIZE: int = 16
+INF: int = 10**9  # 無限大を表す定数（到達不可能、未訪問など）
 
 
 class Direction(IntEnum):
@@ -287,11 +288,14 @@ class BaseExplorer:
             self.known_walls[ny][nx][int(od)] = exists
             self.observed[ny][nx][int(od)] = True
 
-    def update_walls_from_relative(self, left: bool, front: bool, right: bool) -> None:
+    def update_walls_from_relative(self, left: bool|None, front: bool|None, right: bool|None) -> None:
         x, y, h = self.pose.x, self.pose.y, self.pose.heading
-        self.mark_wall(x, y, h.left(), left)
-        self.mark_wall(x, y, h, front)
-        self.mark_wall(x, y, h.right(), right)
+        if left is not None:
+            self.mark_wall(x, y, h.left(), left)
+        if front is not None:
+            self.mark_wall(x, y, h, front)
+        if right is not None:
+            self.mark_wall(x, y, h.right(), right)
 
     def _can_move_abs(self, x: int, y: int, d: Direction) -> bool:
         # Outside the maze boundary is always a wall.
@@ -423,7 +427,14 @@ class AdachiExplorer(BaseExplorer):
             direction_priority = ("front", "left", "right", "back")
         self.direction_priority = list(direction_priority)
 
-        self.dist: List[List[int]] = [[10**9] * self.size for _ in range(self.size)]
+        self.dist: List[List[int]] = [[INF] * self.size for _ in range(self.size)]
+        
+        # 最終訪問からの経過ステップ数を記録（未訪問は最大値）
+        # steps_since_visit[y][x] = そのマスを最後に訪れてから何ステップ経過したか
+        self.steps_since_visit: List[List[int]] = [[INF] * self.size for _ in range(self.size)]
+        # スタート位置(0,0)は初期状態で訪問済みとする
+        self.steps_since_visit[0][0] = 0
+        
         self._recompute_distance_map()
 
     def set_goals(self, goals: Sequence[Tuple[int, int]]) -> None:
@@ -440,7 +451,6 @@ class AdachiExplorer(BaseExplorer):
 
     def _recompute_distance_map(self) -> None:
         # Multi-source BFS (uniform costs).
-        INF = 10**9
         self.dist = [[INF] * self.size for _ in range(self.size)]
 
         from collections import deque
@@ -460,6 +470,91 @@ class AdachiExplorer(BaseExplorer):
                     self.dist[ny][nx] = nd
                     q.append((nx, ny))
 
+    def step_forward(self) -> None:
+        """前進し、訪問ステップ数を更新する"""
+        # 全てのマスの経過ステップ数をインクリメント
+        for y in range(self.size):
+            for x in range(self.size):
+                self.steps_since_visit[y][x] += 1
+        
+        # 親クラスのstep_forwardを呼び出して実際に移動
+        super().step_forward()
+        
+        # 移動先のマスの経過ステップ数を0にリセット
+        self.steps_since_visit[self.pose.y][self.pose.x] = 0
+    
+    def get_steps_since_visit(self, x: int, y: int) -> int:
+        """指定したマスを最後に訪れてからの経過ステップ数を取得
+        
+        Args:
+            x: X座標
+            y: Y座標
+        
+        Returns:
+            経過ステップ数（未訪問の場合は非常に大きな値）
+        """
+        if not _in_bounds(x, y, self.size):
+            return INF
+        return self.steps_since_visit[y][x]
+    
+    def get_current_position(self) -> Tuple[int, int]:
+        """現在の位置座標を取得
+        
+        Returns:
+            (x, y) の座標タプル
+        """
+        return (self.pose.x, self.pose.y)
+    
+    def get_current_pose(self) -> Pose:
+        """現在の姿勢（位置と向き）を取得
+        
+        Returns:
+            現在のPoseオブジェクト
+        """
+        return self.pose
+    
+    def get_distance_map(self, from_x: int, from_y: int) -> List[List[int]]:
+        """始点から全マスへの最短ステップ数マップを計算
+        
+        現在の壁情報に基づいて、始点から各マスまでの最短距離を計算します。
+        
+        Args:
+            from_x: 始点のX座標
+            from_y: 始点のY座標
+        
+        Returns:
+            距離マップ dist_map[y][x]（到達不可能な場合はINF）
+        """
+        # BFSで始点から各マスまでの距離を計算
+        from collections import deque
+        
+        dist_map: List[List[int]] = [[INF] * self.size for _ in range(self.size)]
+        
+        if not _in_bounds(from_x, from_y, self.size):
+            return dist_map
+        
+        dist_map[from_y][from_x] = 0
+        
+        q = deque()
+        q.append((from_x, from_y))
+        
+        while q:
+            x, y = q.popleft()
+            current_dist = dist_map[y][x]
+            
+            # 4方向をチェック
+            for d in Direction:
+                if self._can_move_abs(x, y, d):
+                    dx, dy = DIR_VECTORS[d]
+                    nx, ny = x + dx, y + dy
+                    if _in_bounds(nx, ny, self.size):
+                        new_dist = current_dist + 1
+                        if dist_map[ny][nx] > new_dist:
+                            dist_map[ny][nx] = new_dist
+                            q.append((nx, ny))
+        
+        return dist_map
+    
     def _rel_to_abs(self, rel: str) -> Direction:
         h = self.pose.heading
         if rel == "front":
@@ -472,7 +567,7 @@ class AdachiExplorer(BaseExplorer):
             return h.back()
         raise ValueError(f"unknown rel direction: {rel}")
 
-    def decide_heading(self, left_wall: bool, front_wall: bool, right_wall: bool) -> Direction | None:
+    def decide_heading(self, left_wall: bool|None, front_wall: bool|None, right_wall: bool|None) -> Direction | None:
         # 1) Update known walls for this cell.
         self.update_walls_from_relative(left_wall, front_wall, right_wall)
 
@@ -482,14 +577,13 @@ class AdachiExplorer(BaseExplorer):
         x, y, h = self.pose.x, self.pose.y, self.pose.heading
 
         # Check if current position can reach goal
-        INF = 10**9
         if self.dist[y][x] >= INF:
             # No path to goal exists (e.g., goal is surrounded by walls)
             return None
 
         # 3) Select move that reduces distance.
         best_abs: Optional[Direction] = None
-        best_dist = 10**9
+        best_dist = INF
 
         for rel in self.direction_priority:
             d = self._rel_to_abs(rel)

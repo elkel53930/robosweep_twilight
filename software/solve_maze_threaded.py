@@ -18,7 +18,7 @@ sys.path.append('search')
 
 from mob.mobile_base_threaded import MobileBaseThread
 from mob.esp32_reset import esp32_reset
-from search.micromouse_algorithms import AdachiExplorer, Direction
+from search.micromouse_algorithms import AdachiExplorer, Direction, INF
 from rpi.camera_py.ball_detect_threaded import BallDetectThread
 from arm.arm import Arm
 from dataclasses import dataclass
@@ -135,9 +135,6 @@ def initialize_mobile_base(ser: serial.Serial, timeout: float) -> MobileBaseThre
     mob_thread.wait_response()
     
     mob_thread.send_command('RANG')
-    mob_thread.wait_response()
-    
-    mob_thread.send_command('WALL', True)
     mob_thread.wait_response()
 
     return mob_thread
@@ -312,10 +309,12 @@ def run_maze_exploration(robot: Robot, max_steps: int) -> str:
     """
     print("\n=== 迷路探索開始 ===")
     
+    robot.mob_thread.send_command('WALL', True)
+    robot.mob_thread.wait_response()
+    
     # 最初の前進
     robot.mob_thread.send_command('FWD', FWD_SPEED, FWD_ACC, 90)
     robot.mob_thread.wait_response()
-    robot.explorer.step_forward()
     
     step_count = 0
     consecutive_sensor_failures = 0
@@ -414,8 +413,6 @@ def show_final_results(robot: Robot) -> None:
     Args:
         robot: Robotインスタンス
     """
-    robot.mob_thread.send_command('WALL', False)
-    robot.mob_thread.wait_response()
     
     robot.mob_thread.send_command('SEN')
     response_type, sensor_data = robot.mob_thread.wait_response(timeout=2.0)
@@ -473,27 +470,80 @@ def main() -> int:
         
         # Robotインスタンスを作成
         robot = Robot(mob_thread=mob_thread, ball_thread=ball_thread, arm=arm, explorer=explorer)        
-        
-        # 迷路探索実行
-        result = run_maze_exploration(robot, args.max_steps)
-        
-        # 探索結果を表示
-        print(f"\n=== 探索結果: {result} ===")
-        if result == 'GOAL_REACHED':
-            print("ゴールに到達しました！")
-        elif result == 'NO_PATH':
-            print("ゴールへの道が見つかりませんでした。")
-        elif result == 'SENSOR_ERROR':
-            print("センサーエラーが多発したため中断しました。")
-        elif result == 'MAX_STEPS':
-            print(f"最大ステップ数 {args.max_steps} に到達しました。")
-        else:
-            print(f"不明な結果: {result}")
-        
-        # 最終結果表示
-        show_final_results(robot)
-        
-        return 0
+
+        # 一番最初の前進はアルゴリズムによらずに実行されるため、
+        # その分をアルゴリズムに通知しておく
+        robot.explorer.step_forward() 
+        while True:
+            # 迷路探索実行
+            result = run_maze_exploration(robot, args.max_steps)
+            
+            # 探索結果を表示
+            print(f"\n=== 探索結果: {result} ===")
+            if result == 'GOAL_REACHED':
+                print("ゴールに到達しました！")
+            elif result == 'NO_PATH':
+                print("ゴールへの道が見つかりませんでした。")
+            elif result == 'SENSOR_ERROR':
+                print("センサーエラーが多発したため中断しました。")
+            elif result == 'MAX_STEPS':
+                print(f"最大ステップ数 {args.max_steps} に到達しました。")
+            else:
+                print(f"不明な結果: {result}")
+            
+            # 最終結果表示
+            show_final_results(robot)
+
+            # 経過ステップ数が最も大きいマスを探す（到達不可能なマスは除外）
+            import random
+            max_steps_since_visit = -1
+            least_visited_cells = []
+            
+            current_pos_x, current_pos_y = robot.explorer.get_current_position()
+            dist_map = robot.explorer.get_distance_map(current_pos_x, current_pos_y)
+            for y in range(args.maze_size):
+                for x in range(args.maze_size):
+                    # 到達不可能なマス（距離が無限大）は除外
+                    if dist_map[y][x] >= INF:
+                        continue
+                    
+                    steps = robot.explorer.get_steps_since_visit(x, y)
+                    if steps > max_steps_since_visit:
+                        max_steps_since_visit = steps
+                        least_visited_cells = [(x, y)]
+                    elif steps == max_steps_since_visit:
+                        least_visited_cells.append((x, y))
+            selected_cell = None
+            if least_visited_cells:
+                selected_cell = random.choice(least_visited_cells)
+                print(f"\n=== 最も訪れていないマス ===")
+                print(f"経過ステップ数: {max_steps_since_visit}")
+                print(f"該当マス数: {len(least_visited_cells)}")
+                print(f"選択されたマス: {selected_cell}")
+            else:
+                selected_cell = (0, 0)
+
+            robot.explorer.set_goals([selected_cell])
+            current_heading = robot.explorer.pose.heading
+            next_heading = robot.explorer.decide_heading(None, None, None)
+            # 到達不可能だとわかっているマスは選択されないので、必ず進行方向が得られる
+            print(f"#Next heading: {next_heading.name}")
+            action = relative_to_action(current_heading, next_heading)
+            print(f"#Current heading: {current_heading.name}")
+            print(f"#Next action: {action}")
+            
+            if action == "fwd":
+                pass # run_maze_explorationで前進を行う
+            elif action == "left":
+                robot.mob_thread.send_command('TURN', 1.5708)  # pi/2
+                wait_for_done(robot)
+            elif action == "right":
+                robot.mob_thread.send_command('TURN', -1.5708)  # -pi/2
+                wait_for_done(robot)
+            elif action == "back":
+                robot.mob_thread.send_command('TURN', 3.14159)  # pi
+                wait_for_done(robot)
+
         
     except KeyboardInterrupt:
         print("\n\n=== 中断されました ===")
@@ -510,6 +560,8 @@ def main() -> int:
     finally:
         # スレッド停止
         if mob_thread:
+            robot.mob_thread.send_command('WALL', False)
+            robot.mob_thread.wait_response()
             mob_thread.stop()
             print("MobileBaseスレッド停止")
             
