@@ -61,7 +61,7 @@ class MobileBaseThread:
         """コマンドを送信（非ブロッキング）"""
         self.cmd_queue.put((cmd, args))
     
-    def wait_response(self, timeout: Optional[float] = None) -> tuple[str, Any]:
+    def wait_response(self, timeout: Optional[float] = None, block: bool = True) -> tuple[str, Any]:
         """応答を待つ（ブロッキング）
         
         Returns:
@@ -69,7 +69,7 @@ class MobileBaseThread:
             response_type: 'DONE', 'QSTPDONE', 'ERROR', 'TIMEOUT'
         """
         try:
-            return self.response_queue.get(timeout=timeout or self.timeout)
+            return self.response_queue.get(timeout=timeout or self.timeout, block=block)
         except queue.Empty:
             return ('TIMEOUT', None)
     

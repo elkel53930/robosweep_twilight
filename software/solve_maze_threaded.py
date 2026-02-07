@@ -19,6 +19,7 @@ sys.path.append('search')
 from mob.mobile_base_threaded import MobileBaseThread
 from mob.esp32_reset import esp32_reset
 from search.micromouse_algorithms import AdachiExplorer, Direction
+from rpi.camera_py.ball_detect_threaded import BallDetectThread
 
 
 # センサーしきい値
@@ -26,6 +27,8 @@ LS_THRESHOLD = 100  # 左前壁検出
 RS_THRESHOLD = 100  # 右前壁検出
 LF_RF_THRESHOLD = 50  # 左側・右側壁検出（両方がこの値以上で前壁あり）
 
+FWD_SPEED = 200
+FWD_ACC = 1000
 
 def detect_walls(sensor_data: dict) -> tuple[bool, bool, bool]:
     """センサーデータから壁の有無を判定
@@ -121,6 +124,31 @@ def initialize_robot(mob_thread: MobileBaseThread) -> None:
     mob_thread.wait_response()
 
 
+def initialize_ball_detector() -> BallDetectThread:
+    """ボール検出スレッドを初期化・開始
+    
+    Returns:
+        初期化されたBallDetectThread
+    """
+    from picamera2 import Picamera2
+    from rpi.camera_py.ball_detect import BallDetect
+    
+    print("=== カメラ初期化 ===")
+    picam2 = Picamera2()
+    config = picam2.create_video_configuration(
+        main={"size": (640, 360), "format": "BGR888"}
+    )
+    picam2.configure(config)
+    picam2.start()
+    
+    detector = BallDetect(debug=False)
+    ball_thread = BallDetectThread(picam2, detector)
+    ball_thread.start()
+    print("ボール検出スレッド開始")
+    
+    return ball_thread
+
+
 def get_sensor_data_with_retry(mob_thread: MobileBaseThread, max_retries: int = 3) -> tuple[dict | None, bool]:
     """センサーデータを取得（リトライ付き）
     
@@ -147,56 +175,67 @@ def get_sensor_data_with_retry(mob_thread: MobileBaseThread, max_retries: int = 
     return None, False
 
 
-def execute_action(mob_thread: MobileBaseThread, action: str) -> None:
-    """アクションを実行
+def generate_action(mob_thread: MobileBaseThread, action: str) -> list[tuple]:
+    """アクションに対応するコマンドリストを生成
     
     Args:
         mob_thread: MobileBaseスレッド
         action: 'fwd', 'left', 'right', 'back' のいずれか
+    
+    Returns:
+        コマンドのリスト [(command, args...), ...]
+        各要素は send_command() の引数タプル
     """
     if action == 'fwd':
         # 次のマスへ前進（180mm）
-        mob_thread.send_command('FWD', 300, 1200, 180)
+        return [('FWD', FWD_SPEED, FWD_ACC, 180)]
     elif action == 'left':
         # 停止 → 左旋回 → 前進
-        mob_thread.send_command('STOP', 300, 1200, 90)
-        mob_thread.wait_response()
-        mob_thread.send_command('TURN', 1.5708)  # pi/2
-        mob_thread.wait_response()
-        mob_thread.send_command('FWD', 300, 1200, 90)
+        return [
+            ('STOP', FWD_SPEED, FWD_ACC, 90),
+            ('TURN', 1.5708),  # pi/2
+            ('FWD', FWD_SPEED, FWD_ACC, 90)
+        ]
     elif action == 'right':
         # 停止 → 右旋回 → 前進
-        mob_thread.send_command('STOP', 300, 1200, 90)
-        mob_thread.wait_response()
-        mob_thread.send_command('TURN', -1.5708)  # -pi/2
-        mob_thread.wait_response()
-        mob_thread.send_command('FWD', 300, 1200, 90)
+        return [
+            ('STOP', FWD_SPEED, FWD_ACC, 90),
+            ('TURN', -1.5708),  # -pi/2
+            ('FWD', FWD_SPEED, FWD_ACC, 90)
+        ]
     elif action == 'back':
         # 停止 → 180度旋回 → 前進
-        mob_thread.send_command('STOP', 300, 1200, 90)
-        mob_thread.wait_response()
-        mob_thread.send_command('TURN', 3.14159)  # pi
-        mob_thread.wait_response()
-        mob_thread.send_command('FWD', 300, 1200, 90)
+        return [
+            ('STOP', FWD_SPEED, FWD_ACC, 90),
+            ('TURN', 3.14159),  # pi
+            ('FWD', FWD_SPEED, FWD_ACC, 90)
+        ]
+    else:
+        raise ValueError(f"Unknown action: {action}")
 
 
-def wait_for_done(mob_thread: MobileBaseThread, max_wait_cycles: int = 100) -> bool:
+def wait_for_done(mob_thread: MobileBaseThread, ball_thread: BallDetectThread | None = None,
+                  max_wait_seconds: float = 10.0) -> bool:
     """DONE応答を待つ
     
     Args:
         mob_thread: MobileBaseスレッド
-        max_wait_cycles: 最大待機サイクル
+        max_wait_seconds: 最大待機時間（秒）
+        detect_ball: ボール検出を行うかどうか
     
     Returns:
         正常にDONEを受信したかどうか
     """
-    wait_cycles = 0
+    start_time = time.time()
     
-    while wait_cycles < max_wait_cycles:
-        wait_cycles += 1
-        
+    while (time.time() - start_time) < max_wait_seconds:
         try:
-            response_type, data = mob_thread.wait_response(timeout=0.1)
+            response_type, data = mob_thread.wait_response(block=False)
+            
+            if ball_thread is not None:
+                detected, ball_info = ball_thread.is_ball_detected()
+                if detected:
+                    print(f"#ボール検出！{ball_info}")
             
             if response_type == 'DONE':
                 print("RX: DONE")
@@ -215,12 +254,14 @@ def wait_for_done(mob_thread: MobileBaseThread, max_wait_cycles: int = 100) -> b
             print(f"#応答待機エラー: {e}")
             return False
     
-    print(f"#Warning: DONE応答のタイムアウト")
+        time.sleep(0.01)
+
+    print(f"#Warning: DONE応答のタイムアウト ({max_wait_seconds}秒)")
     return False
 
 
 def run_maze_exploration(mob_thread: MobileBaseThread, explorer: AdachiExplorer, 
-                         max_steps: int) -> None:
+                         ball_thread: BallDetectThread, max_steps: int) -> None:
     """迷路探索のメインループを実行
     
     Args:
@@ -231,7 +272,7 @@ def run_maze_exploration(mob_thread: MobileBaseThread, explorer: AdachiExplorer,
     print("\n=== 迷路探索開始 ===")
     
     # 最初の前進
-    mob_thread.send_command('FWD', 300, 1200, 90)
+    mob_thread.send_command('FWD', FWD_SPEED, FWD_ACC, 90)
     mob_thread.wait_response()
     explorer.step_forward()
     
@@ -251,7 +292,7 @@ def run_maze_exploration(mob_thread: MobileBaseThread, explorer: AdachiExplorer,
             
             if consecutive_sensor_failures >= 5:
                 print("\n=== センサー取得エラーが多発しています。中断します ===")
-                mob_thread.send_command('STOP', 300, 1200, 90)
+                mob_thread.send_command('STOP', FWD_SPEED, FWD_ACC, 90)
                 mob_thread.wait_response(timeout=1.0)
                 break
             
@@ -272,7 +313,7 @@ def run_maze_exploration(mob_thread: MobileBaseThread, explorer: AdachiExplorer,
         if (current_x, current_y) in explorer.goals:
             explorer.update_walls_from_relative(left_wall, front_wall, right_wall)
             print(f"\n=== ゴール到達！ ({current_x}, {current_y}) ===")
-            mob_thread.send_command('STOP', 300, 1200, 90)
+            mob_thread.send_command('STOP', FWD_SPEED, FWD_ACC, 90)
             mob_thread.wait_response()
             break
         
@@ -282,18 +323,33 @@ def run_maze_exploration(mob_thread: MobileBaseThread, explorer: AdachiExplorer,
         if next_heading is None:
             print(f"\n=== ゴールまでの道がありません！ ===")
             print(f"現在位置 ({current_x}, {current_y}) からゴールに到達できません")
-            mob_thread.send_command('STOP', 300, 1200, 90)
+            mob_thread.send_command('STOP', FWD_SPEED, FWD_ACC, 90)
             mob_thread.wait_response()
             break
         
         print(f"#Next heading: {next_heading.name}")
         
-        # アクション決定と実行
+        # アクション決定
         action = relative_to_action(current_heading, next_heading)
         print(f"#Action: {action}")
         
-        execute_action(mob_thread, action)
-        wait_for_done(mob_thread)
+        # アクションに対応するコマンドリストを取得
+        command_queue = generate_action(mob_thread, action)
+        print(f"#Command queue: {len(command_queue)} commands")
+        
+        # コマンドキューを1つずつ実行
+        # 各コマンドを送信→DONE待ち→次のコマンド送信
+        for i, cmd in enumerate(command_queue):
+            print(f"#Sending command {i+1}/{len(command_queue)}: {cmd[0]}")
+            mob_thread.send_command(*cmd)
+            
+            # FWDコマンドの場合のみボール検出を有効にする
+            ball_thread_ = ball_thread if (cmd[0] == 'FWD' or cmd[0] == 'STOP') else None
+            
+            
+            if not wait_for_done(mob_thread, ball_thread):
+                print(f"#Warning: コマンド {i+1}/{len(command_queue)} の応答待機に失敗")
+                break
         
         # 迷路マップ表示（10ステップごと）
         if step_count % 10 == 0:
@@ -303,7 +359,7 @@ def run_maze_exploration(mob_thread: MobileBaseThread, explorer: AdachiExplorer,
     
     if step_count >= max_steps:
         print(f"\n=== 最大ステップ数 {max_steps} に到達しました ===")
-        mob_thread.send_command('STOP', 300, 1200, 90)
+        mob_thread.send_command('STOP', FWD_SPEED, FWD_ACC, 90)
         mob_thread.wait_response()
 
 
@@ -368,8 +424,11 @@ def main() -> int:
         # ロボット初期化
         initialize_robot(mob_thread)
         
+        # ボール検出スレッド初期化
+        ball_thread = initialize_ball_detector()
+        
         # 迷路探索実行
-        run_maze_exploration(mob_thread, explorer, args.max_steps)
+        run_maze_exploration(mob_thread, explorer, ball_thread, args.max_steps)
         
         # 最終結果表示
         show_final_results(mob_thread, explorer)
@@ -379,7 +438,7 @@ def main() -> int:
     except KeyboardInterrupt:
         print("\n\n=== 中断されました ===")
         if mob_thread:
-            mob_thread.send_command('STOP', 300, 1200, 90)
+            mob_thread.send_command('STOP', FWD_SPEED, FWD_ACC, 90)
             mob_thread.wait_response(timeout=1.0)
         return 1
     except Exception as e:
