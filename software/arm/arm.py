@@ -34,6 +34,16 @@ class Arm:
     ADDR_GOAL_POSITION = 0x1E
     ADDR_GOAL_TIME = 0x20
     
+    # アーム角度定数
+    CATCH_POSITION = 43.0    # ボールキャッチ位置
+    THROW_POSITION = -45.0   # 投擲位置
+    RUN_POSITION = -90.0     # 走行位置
+    
+    # ランチャーサーボ角度定数
+    LAUNCHER_RELOAD = 180    # リロード位置
+    LAUNCHER_READY = 30      # 待機位置
+    LAUNCHER_FIRE = 0        # 発射位置
+    
     def __init__(self, 
                  futaba_port='/dev/ttyAMA0', 
                  futaba_baudrate=115200,
