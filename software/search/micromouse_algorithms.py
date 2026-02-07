@@ -386,7 +386,7 @@ class BaseExplorer:
 
         return '\n'.join(lines)
 
-    def decide_heading(self, left_wall: bool, front_wall: bool, right_wall: bool) -> Direction:
+    def decide_heading(self, left_wall: bool, front_wall: bool, right_wall: bool) -> Direction | None:
         raise NotImplementedError
 
 
@@ -472,7 +472,7 @@ class AdachiExplorer(BaseExplorer):
             return h.back()
         raise ValueError(f"unknown rel direction: {rel}")
 
-    def decide_heading(self, left_wall: bool, front_wall: bool, right_wall: bool) -> Direction:
+    def decide_heading(self, left_wall: bool, front_wall: bool, right_wall: bool) -> Direction | None:
         # 1) Update known walls for this cell.
         self.update_walls_from_relative(left_wall, front_wall, right_wall)
 
@@ -480,6 +480,12 @@ class AdachiExplorer(BaseExplorer):
         self._recompute_distance_map()
 
         x, y, h = self.pose.x, self.pose.y, self.pose.heading
+
+        # Check if current position can reach goal
+        INF = 10**9
+        if self.dist[y][x] >= INF:
+            # No path to goal exists (e.g., goal is surrounded by walls)
+            return None
 
         # 3) Select move that reduces distance.
         best_abs: Optional[Direction] = None
@@ -498,9 +504,9 @@ class AdachiExplorer(BaseExplorer):
                 best_dist = dd
                 best_abs = d
 
-        # Fallback: if all blocked in known map (should be rare), turn back.
+        # If no valid move exists (all neighbors unreachable), goal is unreachable
         if best_abs is None:
-            best_abs = h.back()
+            return None
 
         self.pose.heading = best_abs
         self.step_forward()

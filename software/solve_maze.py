@@ -17,6 +17,7 @@ sys.path.append('mob')
 sys.path.append('search')
 
 from mob.mobile_base import MobileBase
+from mob.esp32_reset import esp32_reset
 from search.micromouse_algorithms import AdachiExplorer, Direction
 
 
@@ -167,6 +168,14 @@ def main() -> int:
             
             # 次の進行方向を決定（内部で姿勢が更新される）
             next_heading = explorer.decide_heading(left_wall, front_wall, right_wall)
+            
+            # ゴールまでの道がない場合
+            if next_heading is None:
+                print(f"\n=== ゴールまでの道がありません！ ===")
+                print(f"現在位置 ({current_x}, {current_y}) からゴールに到達できません")
+                mob.stop()
+                break
+            
             print(f"#Next heading: {next_heading.name}")
             
             # 必要なアクションを決定（現在の物理的な向きと、目指すべき絶対方向を比較）
@@ -220,6 +229,9 @@ def main() -> int:
         return 1
     finally:
         ser.close()
+        # ESP32をリセット
+        print("\n=== ESP32をリセットしています... ===")
+        esp32_reset(args.port)
 
 
 if __name__ == '__main__':
