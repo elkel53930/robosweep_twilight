@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import os
 import threading
 import time
 from datetime import datetime
@@ -51,6 +52,12 @@ class BallDetectThread:
         # 内部状態
         self._consecutive_detected = 0  # 連続検出カウント
         self._consecutive_not_detected = 0  # 連続非検出カウント
+        
+        # ログディレクトリの作成
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.log_dir = f"log/detect_{timestamp}"
+        os.makedirs(self.log_dir, exist_ok=True)
+        print(f"#BallDetect: ログディレクトリ作成: {self.log_dir}")
         
         # デバッグウィンドウ
         if self.debug:
@@ -190,7 +197,7 @@ class BallDetectThread:
             if debug_image is not None:
                 # 日時を含むファイル名を生成
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"detect_{timestamp}.jpg"
+                filename = os.path.join(self.log_dir, f"detect_{timestamp}.jpg")
                 
                 # 画像を保存
                 cv2.imwrite(filename, debug_image)
