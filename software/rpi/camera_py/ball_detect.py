@@ -59,7 +59,7 @@ class BallDetect:
         self.min_ball_radius = 40.0  # 検出するボールの最小半径 (pixels)
         self.max_ball_radius = 200.0  # 検出するボールの最大半径 (pixels)
         self.min_center_y = 80  # ボール中心のY座標の最小値 (pixels)
-        self.detection_threshold = 5  # 連続検出の閾値 (フレーム数)
+        self.detection_threshold = 2  # 連続検出の閾値 (フレーム数)
         self.ball_detected = False  # ボール検出状態
         self.ball_info = None  # ボール情報
         self._consecutive_detected = 0  # 連続検出カウント

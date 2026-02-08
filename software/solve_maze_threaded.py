@@ -10,6 +10,7 @@ import argparse
 import sys
 import time
 
+from charset_normalizer import detect
 import serial
 
 # パスを追加してインポート
@@ -305,17 +306,25 @@ def catch_ball(robot: Robot) -> bool:
         robot.mob_thread.wait_response()
         time.sleep(0.5)
     
+    def detect() -> None:
+        for i in range(10):
+            d, info = robot.ball_thread.is_ball_detected()
+            if d:
+                break
+            print(f"#ボールなし (試行 {i+1}/10)")
+            robot.ball_thread.wait_detection_update()
+        if not d:
+            print("#ボールが見つかりません")
+            robot.ball_thread.save_next_frame()
+            time.sleep(3)
+        return d, info
+    
     # ボールを再度確認
     # 正面を向く
     for _ in range(3):
-        for _ in range(10):
-            detected, ball_info = robot.ball_thread.is_ball_detected()
-            if detected:
-                break
-            robot.ball_thread.wait_detection_update()
+        detected, ball_info = detect()
         print(f"#ボール再確認: detected={detected}, info={ball_info}")
         if not detected:
-            print("#ボールが見つかりません")
             return_original_position()
             return False
         center_x = ball_info['center'][0] # 中心のX座標
@@ -331,14 +340,9 @@ def catch_ball(robot: Robot) -> bool:
     
     # 距離を調整
     for _ in range(3):
-        for _ in range(10):
-            detected, ball_info = robot.ball_thread.is_ball_detected()
-            if detected:
-                break
-            robot.ball_thread.wait_detection_update()
+        detected, ball_info = detect()
         print(f"#ボール再確認: detected={detected}, info={ball_info}")
         if not detected:
-            print("#ボールが見つかりません")
             return_original_position()
             return False
         radius = ball_info['radius']
@@ -364,6 +368,48 @@ def catch_ball(robot: Robot) -> bool:
 
     return True # キャッチ成功
 
+
+def reset_sensors(robot: Robot) -> None:
+    print("=== センサーリセット ===")
+    robot.mob_thread.send_command('GCAL')
+    robot.mob_thread.wait_response()
+    
+    robot.mob_thread.send_command('RDST')
+    robot.mob_thread.wait_response()
+    
+    robot.mob_thread.send_command('RANG')
+    robot.mob_thread.wait_response()
+    
+def handle_ball(robot: Robot, last_command: tuple, front_wall_check: bool=True) -> None:
+    print("#Command done")
+    # コマンドの間にボール検出
+    detected, ball_info = robot.ball_thread.is_ball_detected()
+    robot.ball_thread.save_next_frame()
+    if detected:
+        print(f"#ボール検出{ball_info}")
+        
+        # 眼の前に壁がないか確認
+        sensor_data, _ = get_sensor_data_with_retry(robot)
+        _, is_front_wall, _ = detect_walls(sensor_data)
+        # 前壁チェックなし, または前壁チェックありかつ前壁がない場合
+        if (not front_wall_check) or (front_wall_check and not is_front_wall):
+            # 前壁チェックなし かつ 前壁がない
+            if last_command[0] == 'FWD':
+                # 前進中にボールを検出したら停止して位置を戻す。
+                robot.mob_thread.send_command('STOP', FWD_SPEED, 1000, 30)
+                robot.mob_thread.wait_response()
+                robot.mob_thread.send_command('JOGBACK', 30)
+                robot.mob_thread.wait_response()
+            else:
+                time.sleep(0.5)
+            
+            if catch_ball(robot):
+                print("#ボールキャッチ成功")
+        else:
+            print("#前壁があるためボールキャッチをスキップ")
+            
+        reset_sensors(robot)
+
 def run_maze_exploration(robot: Robot, max_steps: int) -> str:
     """迷路探索のメインループを実行
     
@@ -378,15 +424,7 @@ def run_maze_exploration(robot: Robot, max_steps: int) -> str:
         - 'SENSOR_ERROR': センサーエラー多発
         - 'MAX_STEPS': 最大ステップ数到達
     """
-    print("=== 初期化 ===")
-    robot.mob_thread.send_command('GCAL')
-    robot.mob_thread.wait_response()
-    
-    robot.mob_thread.send_command('RDST')
-    robot.mob_thread.wait_response()
-    
-    robot.mob_thread.send_command('RANG')
-    robot.mob_thread.wait_response()
+    reset_sensors(robot)
     
     print("\n=== 迷路探索開始 ===")
     
@@ -394,8 +432,10 @@ def run_maze_exploration(robot: Robot, max_steps: int) -> str:
     robot.mob_thread.wait_response()
     
     # 最初の前進
-    robot.mob_thread.send_command('FWD', FWD_SPEED, FWD_ACC, 90)
-    robot.mob_thread.wait_response()
+    cmd = ('FWD', FWD_SPEED, FWD_ACC, 90) # 最初の前進コマンド
+    robot.mob_thread.send_command(*cmd)
+    wait_for_done(robot)
+    handle_ball(robot,cmd,front_wall_check=False)
     
     step_count = 0
     consecutive_sensor_failures = 0
@@ -464,36 +504,12 @@ def run_maze_exploration(robot: Robot, max_steps: int) -> str:
             print(f"#Sending command {i+1}/{len(command_queue)}: {cmd[0]}")
             last_command = cmd
             robot.mob_thread.send_command(*cmd)
-            
             if not wait_for_done(robot):
                 print(f"#Warning: コマンド {i+1}/{len(command_queue)} の応答待機に失敗")
                 return "EXIT"
 
-            # コマンドの間にボール検出
-            detected, ball_info = robot.ball_thread.is_ball_detected()
-            if detected:
-                print(f"#ボール検出{ball_info}")
-                if last_command[0] == 'FWD':
-                    robot.mob_thread.send_command('STOP', FWD_SPEED, 1000, 30)
-                    robot.mob_thread.wait_response()
-                    robot.mob_thread.send_command('JOGBACK', 30)
-                    robot.mob_thread.wait_response()
-                else:
-                    time.sleep(0.5)
-                
-                if catch_ball(robot):
-                    print("#ボールキャッチ成功")
-                robot.mob_thread.send_command('GCAL')
-                robot.mob_thread.wait_response()
-    
-                robot.mob_thread.send_command('RDST')
-                robot.mob_thread.wait_response()
-    
-                robot.mob_thread.send_command('RANG')
-                robot.mob_thread.wait_response()
-                    
+            handle_ball(robot,last_command, front_wall_check=last_command[0]=='STOP')
 
-        
         # 迷路マップ表示（10ステップごと）
         if step_count % 10 == 0:
             print("\n=== 現在の迷路マップ ===")

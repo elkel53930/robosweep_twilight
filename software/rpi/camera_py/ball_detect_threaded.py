@@ -33,6 +33,7 @@ class BallDetectThread:
         # ボール検出状態の共有変数
         self.ball_detected_lock = threading.Lock()
         self._detection_updated_since_last_check = False  # 検出状態が更新されたかのフラグ
+        self._save_next_frame = False  # 次回フレームを保存するかのフラグ
         
         # デバッグ表示用フレーム（メインスレッドから読み取る）
         self.debug_frame = None
@@ -125,6 +126,16 @@ class BallDetectThread:
         with self.debug_frame_lock:
             return self.debug_frame.copy() if self.debug_frame is not None else None
     
+    def save_next_frame(self):
+        """次回のフレーム取得時に検出結果をjpgファイルに保存する
+        
+        このメソッドを呼び出すと、次のフレーム処理時に自動的に
+        検出結果が描画された画像がlog/detect_YYYYMMDD_HHMMSS/に保存されます。
+        """
+        with self.ball_detected_lock:
+            self._save_next_frame = True
+            print("#BallDetect: 次回フレームを保存します")
+    
     def _thread_loop(self):
         """スレッドのメインループ"""
         # 最初の数フレームをスキップ（カメラの露光調整待ち）
@@ -160,6 +171,13 @@ class BallDetectThread:
                     # 検出確定の瞬間に画像を保存
                     if detection_changed and self.detector.ball_detected:
                         self._save_detection_image(frame, result, is_ball_in_frame, True)
+                    
+                    # 次回フレーム保存フラグがセットされていたら保存
+                    if self._save_next_frame:
+                        ball_detected_status = self.detector.ball_detected
+                        self._save_detection_image(frame, result, is_ball_in_frame, ball_detected_status)
+                        self._save_next_frame = False  # フラグをクリア
+                        print("#BallDetect: フレームを保存しました")
                 
                 # デバッグ表示用フレームを準備（メインスレッドで表示）
                 if self.debug:
