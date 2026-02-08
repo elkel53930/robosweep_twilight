@@ -13,6 +13,7 @@ import serial
 import threading
 import time
 import queue
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Optional, Callable
 
@@ -26,7 +27,106 @@ class SensorData:
     timestamp: float       # タイムスタンプ
 
 
-class Arm:
+class ArmBase(ABC):
+    """アームコントローラーの抽象基底クラス"""
+    
+    # アーム角度定数
+    CATCH_POSITION = 43.0    # ボールキャッチ位置
+    THROW_POSITION = -45.0   # 投擲位置
+    RUN_POSITION = -90.0     # 走行位置
+    
+    # ランチャーサーボ角度定数
+    LAUNCHER_RELOAD = 180    # リロード位置
+    LAUNCHER_READY = 30      # 待機位置
+    LAUNCHER_FIRE = 0        # 発射位置
+    
+    @abstractmethod
+    def connect_arduino(self) -> bool:
+        """Arduinoに接続"""
+        pass
+    
+    @abstractmethod
+    def disconnect(self):
+        """すべての接続を切断"""
+        pass
+    
+    @abstractmethod
+    def set_servo_arm_torque(self, enable: bool):
+        """アームサーボのトルクON/OFF"""
+        pass
+    
+    @abstractmethod
+    def set_servo_arm_angle(self, angle: float, move_time: int = 0):
+        """アームサーボの目標角度設定"""
+        pass
+    
+    @abstractmethod
+    def set_servo_arm_brake(self):
+        """アームサーボをブレーキモードに設定"""
+        pass
+    
+    @abstractmethod
+    def set_servo_launcher_angle(self, angle: int) -> bool:
+        """ランチャーサーボの角度を設定"""
+        pass
+    
+    @abstractmethod
+    def set_servo_launcher_angle_with_speed(self, angle: int, speed: int) -> bool:
+        """ランチャーサーボの角度を指定速度で設定"""
+        pass
+    
+    @abstractmethod
+    def set_servo_launcher_speed(self, speed: int) -> bool:
+        """ランチャーサーボのデフォルト速度を設定"""
+        pass
+    
+    @abstractmethod
+    def detach_servo_launcher(self) -> bool:
+        """ランチャーサーボを脱力状態にする"""
+        pass
+    
+    @abstractmethod
+    def set_motor_speed(self, speed: int) -> bool:
+        """モータ速度を設定"""
+        pass
+    
+    @abstractmethod
+    def emergency_stop(self) -> bool:
+        """緊急停止"""
+        pass
+    
+    @abstractmethod
+    def request_status(self) -> bool:
+        """ステータス要求"""
+        pass
+    
+    @abstractmethod
+    def get_latest_sensor_data(self) -> Optional[SensorData]:
+        """最新のセンサーデータを取得"""
+        pass
+    
+    @abstractmethod
+    def get_sensor_data_queue(self) -> queue.Queue:
+        """センサーデータキューを取得"""
+        pass
+    
+    @abstractmethod
+    def set_sensor_callback(self, callback: Callable[[SensorData], None]):
+        """センサーデータ受信時のコールバック関数を設定"""
+        pass
+    
+    @abstractmethod
+    def __enter__(self):
+        """コンテキストマネージャー対応"""
+        pass
+    
+    @abstractmethod
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """コンテキストマネージャー対応"""
+        pass
+
+
+class Arm(ArmBase):
     """統合アームコントローラークラス"""
     
     # Futabaサーボのメモリマップアドレス
@@ -470,6 +570,100 @@ class Arm:
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
+        self.disconnect()
+
+
+class ArmDummy(ArmBase):
+    """ダミーアームコントローラークラス（何もしない）"""
+    
+    def __init__(self, 
+                 futaba_port='/dev/ttyAMA0', 
+                 futaba_baudrate=115200,
+                 arduino_port='/dev/ttyUSB0', 
+                 arduino_baudrate=115200,
+                 arm_servo_id=1,
+                 arm_min_angle=-90.0,
+                 arm_max_angle=45.0):
+        """初期化（何もしない）"""
+        self.arm_servo_id = arm_servo_id
+        self.arm_min_angle = arm_min_angle
+        self.arm_max_angle = arm_max_angle
+        self.latest_sensor_data: Optional[SensorData] = None
+        self.sensor_callback: Optional[Callable[[SensorData], None]] = None
+        print("ArmDummy initialized (no hardware connection)")
+    
+    def connect_arduino(self) -> bool:
+        """Arduino接続（ダミー）"""
+        print("ArmDummy: Arduino connection (dummy)")
+        return True
+    
+    def disconnect(self):
+        """切断（ダミー）"""
+        print("ArmDummy: Disconnected (dummy)")
+    
+    def __del__(self):
+        """デストラクタ（ダミー）"""
+        pass
+    
+    def set_servo_arm_torque(self, enable: bool):
+        """アームサーボのトルクON/OFF（ダミー）"""
+        pass
+    
+    def set_servo_arm_angle(self, angle: float, move_time: int = 0):
+        """アームサーボの目標角度設定（ダミー）"""
+        pass
+    
+    def set_servo_arm_brake(self):
+        """アームサーボをブレーキモードに設定（ダミー）"""
+        pass
+    
+    def set_servo_launcher_angle(self, angle: int) -> bool:
+        """ランチャーサーボの角度を設定（ダミー）"""
+        return True
+    
+    def set_servo_launcher_angle_with_speed(self, angle: int, speed: int) -> bool:
+        """ランチャーサーボの角度を指定速度で設定（ダミー）"""
+        return True
+    
+    def set_servo_launcher_speed(self, speed: int) -> bool:
+        """ランチャーサーボのデフォルト速度を設定（ダミー）"""
+        return True
+    
+    def detach_servo_launcher(self) -> bool:
+        """ランチャーサーボを脱力状態にする（ダミー）"""
+        return True
+    
+    def set_motor_speed(self, speed: int) -> bool:
+        """モータ速度を設定（ダミー）"""
+        return True
+    
+    def emergency_stop(self) -> bool:
+        """緊急停止（ダミー）"""
+        return True
+    
+    def request_status(self) -> bool:
+        """Arduinoのステータス要求（ダミー）"""
+        return True
+    
+    def get_latest_sensor_data(self) -> Optional[SensorData]:
+        """最新のセンサーデータを取得（ダミー）"""
+        return self.latest_sensor_data
+    
+    def get_sensor_data_queue(self) -> queue.Queue:
+        """センサーデータキューを取得（ダミー）"""
+        return queue.Queue()
+    
+    def set_sensor_callback(self, callback: Callable[[SensorData], None]):
+        """センサーデータ受信時のコールバック関数を設定（ダミー）"""
+        self.sensor_callback = callback
+    
+    def __enter__(self):
+        """コンテキストマネージャー対応（ダミー）"""
+        self.connect_arduino()
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """コンテキストマネージャー対応（ダミー）"""
         self.disconnect()
 
 

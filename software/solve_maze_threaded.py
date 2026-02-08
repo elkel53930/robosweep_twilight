@@ -20,7 +20,7 @@ from mob.mobile_base_threaded import MobileBaseThread
 from mob.esp32_reset import esp32_reset
 from search.micromouse_algorithms import AdachiExplorer, Direction, INF
 from rpi.camera_py.ball_detect_threaded import BallDetectThread
-from arm.arm import Arm
+from arm.arm import Arm, ArmDummy, ArmBase
 from dataclasses import dataclass
 
 
@@ -29,7 +29,7 @@ class Robot:
     """ロボット全体の構造体"""
     mob_thread: MobileBaseThread
     ball_thread: BallDetectThread
-    arm: Arm
+    arm: ArmBase
     explorer: AdachiExplorer
 
 
@@ -164,6 +164,14 @@ def initialize_ball_detector() -> BallDetectThread:
     
     return ball_thread
 
+
+def initialize_arm_dummy() -> ArmDummy:
+    """ダミーアームを初期化"""
+    arm = ArmDummy()
+    print("ダミーアーム初期化")
+    return arm
+
+
 def initialize_arm() -> Arm:
     arm = Arm(futaba_port='/dev/ttyAMA0',
           arduino_port='/dev/ttyUSB0',
@@ -261,6 +269,8 @@ def wait_for_done(robot: Robot, ball_thread: BallDetectThread | None = None,
     """
     start_time = time.time()
     
+    print("#Waiting for DONE...")
+    
     while (time.time() - start_time) < max_wait_seconds:
         try:
             response_type, data = robot.mob_thread.wait_response(block=False)
@@ -271,7 +281,7 @@ def wait_for_done(robot: Robot, ball_thread: BallDetectThread | None = None,
                     print(f"#ボール検出！{ball_info}")
             
             if response_type == 'DONE':
-                print("RX: DONE")
+                print("RX: DONE(from queue)")
                 return True
             elif response_type == 'QSTPDONE':
                 print(f"RX: QSTPDONE, 残り距離={data:.2f}mm")
@@ -435,6 +445,7 @@ def main() -> int:
     ap.add_argument('--max-steps', type=int, default=1000, help='最大ステップ数 (デフォルト: 1000)')
     ap.add_argument('--goal-x', type=int, default=None, help='ゴールX座標 (デフォルト: 迷路中央)')
     ap.add_argument('--goal-y', type=int, default=None, help='ゴールY座標 (デフォルト: 迷路中央)')
+    ap.add_argument('--use-dummy-arm', action='store_true', help='ダミーアームを使用')
     args = ap.parse_args()
     
     # シリアルポート接続
@@ -463,7 +474,10 @@ def main() -> int:
         ball_thread = initialize_ball_detector()
         
         # アーム初期化
-        arm = initialize_arm()
+        if args.use_dummy_arm:
+            arm = initialize_arm_dummy()
+        else:
+            arm = initialize_arm()
         
         # ロボット初期化
         mob_thread = initialize_mobile_base(ser, timeout=args.timeout)

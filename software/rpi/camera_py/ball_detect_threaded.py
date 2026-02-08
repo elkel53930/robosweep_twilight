@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import threading
 import time
+from datetime import datetime
 from typing import Optional, Dict, Any
 
 import cv2
@@ -89,7 +90,10 @@ class BallDetectThread:
             ball_info: ボール情報（検出されている場合）
         """
         with self.ball_detected_lock:
-            return self.ball_detected, self.ball_info.copy() if self.ball_info else None
+            result = None
+            if self.ball_info:
+                result = self.ball_info.copy()
+            return self.ball_detected, result
     
     def get_debug_frame(self):
         """デバッグ表示用フレームを取得（メインスレッドから呼ぶ）"""
@@ -141,10 +145,12 @@ class BallDetectThread:
                 
                 # ボール検出状態を更新
                 with self.ball_detected_lock:
-                    # 5フレーム連続で検出 → ボールあり
+                    # DETECTION_THRESHOLDフレーム連続で検出 → ボールあり
                     if self._consecutive_detected >= self.DETECTION_THRESHOLD:
                         if not self.ball_detected:
                             print(f"#BallDetect: ボール検出確定 (連続{self.DETECTION_THRESHOLD}フレーム)")
+                            # 検出確定の瞬間に画像を保存
+                            self._save_detection_image(frame, result, is_ball_in_frame, True)
                         self.ball_detected = True
                         self.ball_info = result
                     
@@ -168,16 +174,44 @@ class BallDetectThread:
                 traceback.print_exc()
                 time.sleep(0.5)  # エラー時は少し待つ
     
-    def _prepare_debug_frame(self, frame_bgr, result, is_ball_in_frame: bool):
-        """デバッグ用の画像を準備（サブスレッドで実行、描画のみ）
+    def _save_detection_image(self, frame_bgr, result, is_ball_in_frame: bool, ball_detected_status: bool):
+        """ボール検出確定時の画像を保存
         
         Args:
             frame_bgr: 元のBGR画像
             result: 検出結果（None可）
             is_ball_in_frame: サイズ条件を満たすボールか
+            ball_detected_status: ボール検出状態
+        """
+        try:
+            # デバッグフレームと同じ画像を作成
+            debug_image = self._create_debug_image(frame_bgr, result, is_ball_in_frame, ball_detected_status)
+            
+            if debug_image is not None:
+                # 日時を含むファイル名を生成
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"detect_{timestamp}.jpg"
+                
+                # 画像を保存
+                cv2.imwrite(filename, debug_image)
+                print(f"#BallDetect: 検出画像を保存しました: {filename}")
+        except Exception as e:
+            print(f"#BallDetect: 画像保存エラー: {e}")
+    
+    def _create_debug_image(self, frame_bgr, result, is_ball_in_frame: bool, ball_detected_status: bool):
+        """デバッグ用の画像を作成（保存とデバッグ表示の両方で使用）
+        
+        Args:
+            frame_bgr: 元のBGR画像
+            result: 検出結果（None可）
+            is_ball_in_frame: サイズ条件を満たすボールか
+            ball_detected_status: ボール検出状態
+        
+        Returns:
+            デバッグ情報が描画された画像（None if エラー）
         """
         if frame_bgr is None or frame_bgr.size == 0:
-            return
+            return None
         
         disp = frame_bgr.copy()
         
@@ -222,15 +256,31 @@ class BallDetectThread:
                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
         
         # 確定状態表示
-        with self.ball_detected_lock:
-            status_text = "STATUS: BALL DETECTED" if self.ball_detected else "STATUS: NO BALL"
-            status_color = (0, 255, 0) if self.ball_detected else (128, 128, 128)
+        status_text = "STATUS: BALL DETECTED" if ball_detected_status else "STATUS: NO BALL"
+        status_color = (0, 255, 0) if ball_detected_status else (128, 128, 128)
         cv2.putText(disp, status_text, (10, 150), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, status_color, 2)
         
-        # フレームを保存（メインスレッドで表示）
-        with self.debug_frame_lock:
-            self.debug_frame = disp
+        return disp
+    
+    def _prepare_debug_frame(self, frame_bgr, result, is_ball_in_frame: bool):
+        """デバッグ用の画像を準備（サブスレッドで実行、描画のみ）
+        
+        Args:
+            frame_bgr: 元のBGR画像
+            result: 検出結果（None可）
+            is_ball_in_frame: サイズ条件を満たすボールか
+        """
+        # ball_detected状態を取得（ロック外なので安全にアクセス）
+        with self.ball_detected_lock:
+            ball_detected_status = self.ball_detected
+        
+        disp = self._create_debug_image(frame_bgr, result, is_ball_in_frame, ball_detected_status)
+        
+        if disp is not None:
+            # フレームを保存（メインスレッドで表示）
+            with self.debug_frame_lock:
+                self.debug_frame = disp
 
 
 def main():
