@@ -41,8 +41,8 @@ class BallDetect:
             image_width_px: 画像幅 (ピクセル) - Noneの場合は実際の画像から自動取得
         """
         # デフォルトパラメータ（黄色ボール用）
-        self.hsv_lower = hsv_lower if hsv_lower is not None else np.array([15, 80, 80])
-        self.hsv_upper = hsv_upper if hsv_upper is not None else np.array([36, 255, 255])
+        self.hsv_lower = hsv_lower if hsv_lower is not None else np.array([15, 150, 80])
+        self.hsv_upper = hsv_upper if hsv_upper is not None else np.array([36, 255, 200])
         self.morph_kernel = morph_kernel
         self.ransac_residual_threshold = ransac_residual_threshold
         self.ransac_max_trials = ransac_max_trials
