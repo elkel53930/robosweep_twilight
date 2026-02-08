@@ -122,6 +122,10 @@ class MobileBaseThread:
                 self._cmd_turn(args[0])
             elif cmd == 'QSTP':
                 self._cmd_qstp()
+            elif cmd == 'JOGFWD':
+                self._cmd_jogfwd(args[0])
+            elif cmd == 'JOGBACK':
+                self._cmd_jogback(args[0])
             elif cmd == 'SEN':
                 self._cmd_sen()
             else:
@@ -326,6 +330,16 @@ class MobileBaseThread:
         self._send("QSTP\n")
         remaining_dist = self._wait_qstp_done()
         self.response_queue.put(('QSTPDONE', remaining_dist))
+    
+    def _cmd_jogfwd(self, distance: float):
+        """JOGFWDコマンドを実行"""
+        self._send(f"JOGFWD,{distance}\n")
+        self._wait_done_with_qstp_check()
+    
+    def _cmd_jogback(self, distance: float):
+        """JOGBACKコマンドを実行"""
+        self._send(f"JOGBACK,{distance}\n")
+        self._wait_done_with_qstp_check()
     
     def _cmd_sen(self):
         # SENコマンドを送信してセンサーデータを取得
