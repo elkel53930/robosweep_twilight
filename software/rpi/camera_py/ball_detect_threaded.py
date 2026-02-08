@@ -24,13 +24,7 @@ from ball_detect import BallDetect
 class BallDetectThread:
     """BallDetectをスレッドで操作するクラス"""
     
-    # ボール検出の閾値
-    MIN_BALL_RADIUS = 60
-    MAX_BALL_RADIUS = 180
-    MIN_CENTER_Y = 100  # ボール中心のY座標の最小値
-    
-    DETECTION_THRESHOLD = 2  # 連続検出回数の閾値
-    
+
     def __init__(self, picam2: Picamera2, detector: BallDetect, debug: bool = False):
         self.picam2 = picam2
         self.detector = detector
@@ -38,8 +32,7 @@ class BallDetectThread:
         
         # ボール検出状態の共有変数
         self.ball_detected_lock = threading.Lock()
-        self.ball_detected = False  # ボールが検出されているか
-        self.ball_info: Optional[Dict[str, Any]] = None  # ボール情報
+        self._detection_updated_since_last_check = False  # 検出状態が更新されたかのフラグ
         
         # デバッグ表示用フレーム（メインスレッドから読み取る）
         self.debug_frame = None
@@ -48,10 +41,6 @@ class BallDetectThread:
         # スレッド制御
         self.running = False
         self.thread: Optional[threading.Thread] = None
-        
-        # 内部状態
-        self._consecutive_detected = 0  # 連続検出カウント
-        self._consecutive_not_detected = 0  # 連続非検出カウント
         
         # ログディレクトリの作成
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -97,10 +86,39 @@ class BallDetectThread:
             ball_info: ボール情報（検出されている場合）
         """
         with self.ball_detected_lock:
-            result = None
-            if self.ball_info:
-                result = self.ball_info.copy()
-            return self.ball_detected, result
+            ball_detected, ball_info, _, _ = self.detector.get_detection_info()
+            self._detection_updated_since_last_check = False  # フラグをクリア
+            return ball_detected, ball_info
+    
+    def has_detection_updated(self) -> bool:
+        """前回のチェック以降に検出状態が更新されたかを取得
+        
+        このメソッドを呼ぶと内部フラグがクリアされる。
+        is_ball_detected()を呼んだ場合もフラグはクリアされる。
+        
+        Returns:
+            bool: 検出状態が更新されていればTrue
+        """
+        with self.ball_detected_lock:
+            updated = self._detection_updated_since_last_check
+            self._detection_updated_since_last_check = False  # フラグをクリア
+            return updated
+    
+    def wait_detection_update(self, timeout: float = 5.0) -> bool:
+        """検出状態が更新されるまで待機
+        
+        Args:
+            timeout: タイムアウト時間（秒）
+        
+        Returns:
+            bool: 更新があった場合True、タイムアウトした場合False
+        """
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            if self.has_detection_updated():
+                return True
+            time.sleep(0.05)
+        return False
     
     def get_debug_frame(self):
         """デバッグ表示用フレームを取得（メインスレッドから呼ぶ）"""
@@ -130,47 +148,23 @@ class BallDetectThread:
                 if frame_count == warmup_frames + 1:
                     print(f"#BallDetect: First valid frame: shape={frame.shape}, dtype={frame.dtype}")
                     print(f"#BallDetect: Frame min={frame.min()}, max={frame.max()}, mean={frame.mean():.1f}")
-                                # ボール検出
+                # ボール検出
                 result = self.detector.detect(frame)
                 
-                # ボールの有無を判定（サイズチェック＋Y座標チェック）
-                is_ball_in_frame = False
-                if result is not None:
-                    radius = result['radius']
-                    center_x, center_y = result['center']
-                    if (self.MIN_BALL_RADIUS <= radius < self.MAX_BALL_RADIUS and
-                        center_y >= self.MIN_CENTER_Y):
-                        is_ball_in_frame = True
-                
-                # 連続検出カウントを更新
-                if is_ball_in_frame:
-                    self._consecutive_detected += 1
-                    self._consecutive_not_detected = 0
-                else:
-                    self._consecutive_not_detected += 1
-                    self._consecutive_detected = 0
-                
-                # ボール検出状態を更新
+                # 検出状態を更新（BallDetectクラス内で処理）
                 with self.ball_detected_lock:
-                    # DETECTION_THRESHOLDフレーム連続で検出 → ボールあり
-                    if self._consecutive_detected >= self.DETECTION_THRESHOLD:
-                        if not self.ball_detected:
-                            print(f"#BallDetect: ボール検出確定 (連続{self.DETECTION_THRESHOLD}フレーム)")
-                            # 検出確定の瞬間に画像を保存
-                            self._save_detection_image(frame, result, is_ball_in_frame, True)
-                        self.ball_detected = True
-                        self.ball_info = result
+                    is_ball_in_frame, detection_changed = self.detector.update_detection_state(result)
                     
-                    # 5フレーム連続で非検出 → ボールなし
-                    elif self._consecutive_not_detected >= self.DETECTION_THRESHOLD:
-                        if self.ball_detected:
-                            print(f"#BallDetect: ボール消失確定 (連続{self.DETECTION_THRESHOLD}フレーム)")
-                        self.ball_detected = False
-                        self.ball_info = None
+                    # ボールの情報が更新されたらフラグを立てる
+                    self._detection_updated_since_last_check = True
+                    # 検出確定の瞬間に画像を保存
+                    if detection_changed and self.detector.ball_detected:
+                        self._save_detection_image(frame, result, is_ball_in_frame, True)
                 
                 # デバッグ表示用フレームを準備（メインスレッドで表示）
                 if self.debug:
                     self._prepare_debug_frame(frame, result, is_ball_in_frame)
+                
                 
                 # フレームレート調整（約10fps）
                 time.sleep(0.1)
@@ -258,7 +252,8 @@ class BallDetectThread:
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
         
         # 連続カウント表示
-        count_text = f"Detected: {self._consecutive_detected}/{self.DETECTION_THRESHOLD}  Not: {self._consecutive_not_detected}/{self.DETECTION_THRESHOLD}"
+        _, _, consecutive_detected, consecutive_not_detected = self.detector.get_detection_info()
+        count_text = f"Detected: {consecutive_detected}/{self.detector.detection_threshold}  Not: {consecutive_not_detected}/{self.detector.detection_threshold}"
         cv2.putText(disp, count_text, (10, 120), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
         
@@ -280,7 +275,7 @@ class BallDetectThread:
         """
         # ball_detected状態を取得（ロック外なので安全にアクセス）
         with self.ball_detected_lock:
-            ball_detected_status = self.ball_detected
+            ball_detected_status, _, _, _ = self.detector.get_detection_info()
         
         disp = self._create_debug_image(frame_bgr, result, is_ball_in_frame, ball_detected_status)
         

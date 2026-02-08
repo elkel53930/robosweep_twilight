@@ -55,6 +55,16 @@ class BallDetect:
         self.ball_diameter_mm = ball_diameter_mm
         self.image_width_px = image_width_px
         
+        # ボール検出状態管理用の属性
+        self.min_ball_radius = 40.0  # 検出するボールの最小半径 (pixels)
+        self.max_ball_radius = 200.0  # 検出するボールの最大半径 (pixels)
+        self.min_center_y = 80  # ボール中心のY座標の最小値 (pixels)
+        self.detection_threshold = 5  # 連続検出の閾値 (フレーム数)
+        self.ball_detected = False  # ボール検出状態
+        self.ball_info = None  # ボール情報
+        self._consecutive_detected = 0  # 連続検出カウント
+        self._consecutive_not_detected = 0  # 連続非検出カウント
+        
         # デバッグウィンドウ用
         if self.debug:
             cv2.namedWindow("BallDetect - Debug", cv2.WINDOW_NORMAL)
@@ -258,6 +268,74 @@ class BallDetect:
         """
         if self.debug:
             cv2.destroyWindow("BallDetect - Debug")
+    
+    def update_detection_state(self, detection_result: dict | None) -> tuple[bool, bool]:
+        """
+        検出結果をもとに検出状態を更新
+        
+        Args:
+            detection_result: detect()メソッドの返り値
+        
+        Returns:
+            (is_ball_in_frame, detection_changed): 
+                is_ball_in_frame - 現在のフレームでボールが条件を満たすか
+                detection_changed - 検出状態が変わったか
+        """
+        # ボールの有無を判定（サイズチェック＋Y座標チェック）
+        is_ball_in_frame = False
+        if detection_result is not None:
+            radius = detection_result['radius']
+            center_x, center_y = detection_result['center']
+            if (self.min_ball_radius <= radius < self.max_ball_radius and
+                center_y >= self.min_center_y):
+                is_ball_in_frame = True
+        
+        # 連続検出カウントを更新
+        if is_ball_in_frame:
+            self._consecutive_detected += 1
+            self._consecutive_not_detected = 0
+        else:
+            self._consecutive_not_detected += 1
+            self._consecutive_detected = 0
+        
+        # 検出状態が変わったかを記録
+        detection_changed = False
+        previous_detected = self.ball_detected
+        
+        # ボール検出状態を更新
+        # detection_thresholdフレーム連続で検出 → ボールあり
+        if self._consecutive_detected >= self.detection_threshold:
+            if not self.ball_detected:
+                print(f"#BallDetect: ボール検出確定 (連続{self.detection_threshold}フレーム)")
+                detection_changed = True
+            self.ball_detected = True
+            self.ball_info = detection_result
+        
+        # detection_thresholdフレーム連続で非検出 → ボールなし
+        elif self._consecutive_not_detected >= self.detection_threshold:
+            if self.ball_detected:
+                print(f"#BallDetect: ボール消失確定 (連続{self.detection_threshold}フレーム)")
+                detection_changed = True
+            self.ball_detected = False
+            self.ball_info = None
+        
+        return is_ball_in_frame, detection_changed
+    
+    def get_detection_info(self) -> tuple[bool, dict | None, int, int]:
+        """
+        現在の検出状態を取得
+        
+        Returns:
+            (ball_detected, ball_info, consecutive_detected, consecutive_not_detected):
+                ball_detected - ボールが検出されているか
+                ball_info - ボール情報
+                consecutive_detected - 連続検出カウント
+                consecutive_not_detected - 連続非検出カウント
+        """
+        return (self.ball_detected, 
+                self.ball_info.copy() if self.ball_info else None,
+                self._consecutive_detected, 
+                self._consecutive_not_detected)
 
     def calc_angle_distance(self, diameter: int, x: int, y: int) -> Tuple[float, float]:
         """
