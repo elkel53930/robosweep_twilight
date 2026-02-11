@@ -22,7 +22,7 @@ Adafruit_NeoPixel pixels(NUM_OF_LED, LED_SIG, NEO_GRB + NEO_KHZ800);
 #define SERVO1_PIN 8
 #define SERVO2_PIN 9
 #define BATTERY_VOLTAGE_PIN A1
-#define MOTOR_PWM_PIN 11
+#define MOTOR_PWM_PIN 3
 
 // Constants
 #define VOLTAGE_DIVIDER_RATIO 11.0  // 10:1 voltage divider
@@ -87,6 +87,21 @@ void setup() {
   
   // Scan for I2C devices
   scanI2CDevices();
+
+  // RGB動作確認
+  pixels.begin(); // Initialize the NeoPixel library.
+  pixels.setPixelColor(0, pixels.Color(20, 0, 0)); // Blue color
+  pixels.show(); // Send the updated pixel colors to the hardware.
+  delay(200);
+  pixels.setPixelColor(0, pixels.Color(0, 20, 0)); // Green color
+  pixels.show(); // Send the updated pixel colors to the hardware.
+  delay(200);
+  pixels.setPixelColor(0, pixels.Color(0, 0, 20)); // Blue color
+  pixels.show(); // Send the updated pixel colors to the hardware.
+  delay(200);
+  pixels.setPixelColor(0, pixels.Color(20, 20, 20));
+  pixels.show();
+  delay(200);
   
   // Initialize I2C current sensor
   if (!ina219.begin()) {
@@ -133,24 +148,24 @@ void loop() {
 
   if (batteryVoltage > 8.7)
   {
-    pixels.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
+    // AC power connected
     pixels.setPixelColor(0, pixels.Color(0, 0, 20)); // Blue color
     pixels.show(); // Send the updated pixel colors to the hardware.
   }
-  else if (batteryVoltage > 7.4)
+  else if (batteryVoltage > 6.8)
   {
-    pixels.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
+    // Battery OK
     pixels.setPixelColor(0, pixels.Color(0, 20, 0)); // Green color
     pixels.show(); // Send the updated pixel colors to the hardware.
   }
-  else if (batteryVoltage > 6.5)
+  else if (batteryVoltage > 6.3)
   {
-    pixels.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
-    pixels.setPixelColor(0, pixels.Color(20, 20, 0)); //Yello color
+    // Battery low
+    pixels.setPixelColor(0, pixels.Color(20, 20, 0)); // Yellow color
     pixels.show(); // Send the updated pixel colors to the hardware.
   }else
   {
-    pixels.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
+    // Battery critical
     pixels.setPixelColor(0, pixels.Color(20, 0, 0)); // Red color
     pixels.show(); // Send the updated pixel colors to the hardware.
   }
@@ -461,8 +476,8 @@ void setMotorSpeed(int speed) {
 void setupMotorPWM() {
   // Timer2 settings for 20kHz PWM frequency
   // Phase Correct PWM mode, non-inverting, prescaler = 1
-  // D11 is connected to OC2A (Timer2 Channel A)
-  TCCR2A = _BV(COM2A1) | _BV(WGM20);  // Phase Correct PWM mode, OC2A output
+  // D3 is connected to OC2B (Timer2 Channel B)
+  TCCR2A = _BV(COM2B1) | _BV(WGM20);  // Phase Correct PWM mode, OC2B output
   TCCR2B = _BV(CS20);                  // Prescaler = 1
   // Frequency = 16MHz / (2 * 1 * 256) = 31.25kHz (closest achievable)
   // Note: Exact 20kHz not possible with Timer2 on 16MHz Arduino
