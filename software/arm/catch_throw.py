@@ -113,7 +113,7 @@ def catch(arm: Arm, timeout: int=3) -> bool:
     # ランチャーサーボをリロード（スマッシャーをリロード）
     print(f"\n[4] Reloading launcher servo to {Arm.LAUNCHER_READY}°")
     arm.set_servo_launcher_angle(Arm.LAUNCHER_READY)
-    time.sleep(2)  # 回転速度が上がるまで待機
+    time.sleep(1)  # 回転速度が上がるまで待機
     
     # スリープ後、1秒間の電流の平均値を記録
     print("\n[5] Measuring average current over 1 second")
@@ -150,20 +150,20 @@ def catch(arm: Arm, timeout: int=3) -> bool:
         
 
 def throw(arm: Arm) -> None:
-        # アームを投擲位置へ移動
-        print(f"\n[10] Moving arm to THROW position ({Arm.THROW_POSITION}°)")
-        arm.set_servo_arm_angle(Arm.THROW_POSITION, move_time=500)
-        time.sleep(0.6)
-        
-        # ランチャーサーボ開放で投擲（バネ開放）
-        print(f"\n[11] Firing! Setting launcher servo to {Arm.LAUNCHER_FIRE}°")
-        arm.set_servo_launcher_angle(Arm.LAUNCHER_FIRE)
-        time.sleep(0.5)
-        
-        # アームを走行位置へ戻す
-        print(f"\n[12] Returning arm to RUN position ({Arm.RUN_POSITION}°)")
-        arm.set_servo_arm_angle(Arm.RUN_POSITION, move_time=400)
-        time.sleep(0.5)
+    # アームを投擲位置へ移動
+    print(f"\n[10] Moving arm to THROW position ({Arm.THROW_POSITION}°)")
+    arm.set_servo_arm_angle(Arm.THROW_POSITION, move_time=500)
+    time.sleep(0.6)
+    
+    # ランチャーサーボ開放で投擲（バネ開放）
+    print(f"\n[11] Firing! Setting launcher servo to {Arm.LAUNCHER_FIRE}°")
+    arm.set_servo_launcher_angle(Arm.LAUNCHER_FIRE)
+    time.sleep(0.5)
+    
+    # アームを走行位置へ戻す
+    print(f"\n[12] Returning arm to RUN position ({Arm.RUN_POSITION}°)")
+    arm.set_servo_arm_angle(Arm.RUN_POSITION, move_time=500)
+    arm.detach_servo_launcher()
 
 
 
