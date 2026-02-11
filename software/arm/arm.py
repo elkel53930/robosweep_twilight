@@ -135,7 +135,7 @@ class Arm(ArmBase):
     ADDR_GOAL_TIME = 0x20
     
     # アーム角度定数
-    CATCH_POSITION = 43.0    # ボールキャッチ位置
+    CATCH_POSITION = 42.0    # ボールキャッチ位置
     THROW_POSITION = -45.0   # 投擲位置
     RUN_POSITION = -90.0     # 走行位置
     
@@ -665,75 +665,3 @@ class ArmDummy(ArmBase):
     def __exit__(self, exc_type, exc_val, exc_tb):
         """コンテキストマネージャー対応（ダミー）"""
         self.disconnect()
-
-
-# 使用例
-def main():
-    print("統合アームコントローラー")
-    print("=" * 50)
-    
-    try:
-        with Arm(futaba_port='/dev/ttyAMA0', 
-                 arduino_port='/dev/ttyARM',
-                 arm_servo_id=1,
-                 arm_min_angle=-90.0,
-                 arm_max_angle=45.0) as arm:
-            
-            # センサーコールバック設定
-            def sensor_callback(data: SensorData):
-                print(f"Battery: {data.battery_voltage:.2f}V, "
-                      f"Current: {data.current_mA:.1f}mA, "
-                      f"Power: {data.power_mW:.1f}mW")
-            
-            arm.set_sensor_callback(sensor_callback)
-            
-            # アームサーボのトルクON
-            print("アームサーボのトルクON...")
-            arm.set_servo_arm_torque(True)
-            time.sleep(0.5)
-            
-            # テスト動作
-            print("テスト動作を実行...")
-            
-            # アームを45度に移動
-            print("アーム: 45度")
-            arm.set_servo_arm_angle(45.0, move_time=1000)
-            time.sleep(1.5)
-            
-            # ランチャーを90度に移動
-            print("ランチャー: 90度")
-            arm.set_servo_launcher_angle(90)
-            time.sleep(1.0)
-            
-            # アームを0度に戻す
-            print("アーム: 0度")
-            arm.set_servo_arm_angle(0.0, move_time=1000)
-            time.sleep(1.5)
-            
-            # ランチャーを45度に移動
-            print("ランチャー: 45度")
-            arm.set_servo_launcher_angle(45)
-            time.sleep(1.0)
-            
-            # モータテスト
-            print("モータ: 30%")
-            arm.set_motor_speed(30)
-            time.sleep(2)
-            
-            print("モータ: 停止")
-            arm.set_motor_speed(0)
-            
-            # アームサーボのトルクOFF
-            print("アームサーボのトルクOFF...")
-            arm.set_servo_arm_torque(False)
-            
-            print("完了！")
-            
-    except KeyboardInterrupt:
-        print("\n中断されました")
-    except Exception as e:
-        print(f"エラー: {e}")
-
-
-if __name__ == "__main__":
-    main()

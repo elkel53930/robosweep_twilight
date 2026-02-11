@@ -24,6 +24,7 @@ from rpi.camera_py.ball_detect_threaded import BallDetectThread
 from arm.arm import Arm, ArmDummy, ArmBase
 from dataclasses import dataclass
 from math import fabs
+import arm.catch_throw as catch_throw
 
 
 @dataclass
@@ -346,7 +347,7 @@ def catch_ball(robot: Robot) -> bool:
             return_original_position()
             return False
         radius = ball_info['radius']
-        distance = (110 - radius) * 1.25
+        distance = (105 - radius) * 1.5
         print(f"radius={radius:.2f}, distance={distance:.2f} mm")
         if fabs(distance) < 2:
             break
@@ -361,8 +362,14 @@ def catch_ball(robot: Robot) -> bool:
     
     print(f"#Moved angle total: {moved_angle:.4f} rad, distance total: {moved_distance:.2f} mm")
     # 位置調整完了
-    # TODO キャッチ
-    time.sleep(3.0)
+ 
+    catch_result = catch_throw.catch(robot.arm, timeout=3)   
+    if not catch_result:
+        print("#❌ボールキャッチ失敗")
+        return_original_position()
+        return False
+    
+    time.sleep(2.0)
 
     return_original_position()    
 
@@ -686,9 +693,10 @@ def main() -> int:
         return 1
     finally:
         # スレッド停止
+        # ESP32をリセット
+        print("\n=== ESP32をリセットしています... ===")
+        esp32_reset(args.mob_port)
         if mob_thread:
-            robot.mob_thread.send_command('WALL', False)
-            robot.mob_thread.wait_response()
             mob_thread.stop()
             print("MobileBaseスレッド停止")
             
@@ -698,8 +706,9 @@ def main() -> int:
         
         if arm:
             print("\nStopping all motors and disconnecting...")
+            arm.set_servo_launcher_angle(Arm.LAUNCHER_RELOAD)
+            time.sleep(0.5)
             arm.emergency_stop()
-            time.sleep(0.1)
             arm.detach_servo_launcher()
             time.sleep(0.1)
             arm.set_servo_arm_torque(False)
@@ -709,9 +718,6 @@ def main() -> int:
             print("アーム切断")
         
         ser.close()
-        # ESP32をリセット
-        print("\n=== ESP32をリセットしています... ===")
-        esp32_reset(args.port)
 
 
 if __name__ == '__main__':

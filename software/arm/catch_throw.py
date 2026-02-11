@@ -17,7 +17,9 @@ catch_throw.py - ボールをキャッチして投擲するテストスクリプ
 
 import time
 from collections import deque
-from arm import Arm
+from arm.arm import Arm
+
+MOTOR_SPEED = 35
 
 def calculate_current_average(arm, duration=0.5, sample_interval=0.03):
     """
@@ -44,14 +46,18 @@ def calculate_current_average(arm, duration=0.5, sample_interval=0.03):
         time.sleep(sample_interval)
     
     if current_samples:
-        avg_current = sum(current_samples) / len(current_samples)
+        # ソートして、外れ値を除去
+        current_samples.sort()
+        trimmed_samples = current_samples[2:-2]  # 上下2つずつ除去
+        
+        avg_current = sum(trimmed_samples) / len(trimmed_samples)
         print(f"Average current over {duration}s: {avg_current:.1f}mA")
         return avg_current
     else:
         print("Warning: No current data collected")
         return 0.0
 
-def wait_for_current_drop(arm, reference_current, threshold_percentage=95, check_interval=0.03, timeout=5):
+def wait_for_current_drop(arm, reference_current, threshold_percentage=95, check_interval=0.03, timeout=3):
     """
     電流が基準値の指定パーセント未満になるまで待機
     
@@ -92,12 +98,81 @@ def wait_for_current_drop(arm, reference_current, threshold_percentage=95, check
     print(f"✗ Timeout: Current did not drop below threshold within {timeout} seconds")
     return False
 
+def catch(arm: Arm, timeout: int=3) -> bool:
+    # ランチャーサーボを初期位置へセット（リロードギアを初期位置へ移動）
+    print(f"\n[2] Setting launcher servo to {Arm.LAUNCHER_RELOAD}°")
+    arm.set_servo_launcher_angle(Arm.LAUNCHER_RELOAD)
+    time.sleep(0.1)
+    
+    # モーターで吸引開始
+    print("\n[3] Starting motor (suction)")
+    for i in range(10):
+        arm.set_motor_speed(int((i+1) * (MOTOR_SPEED / 10)))
+        time.sleep(0.1)
+    
+    # ランチャーサーボをリロード（スマッシャーをリロード）
+    print(f"\n[4] Reloading launcher servo to {Arm.LAUNCHER_READY}°")
+    arm.set_servo_launcher_angle(Arm.LAUNCHER_READY)
+    time.sleep(2)  # 回転速度が上がるまで待機
+    
+    # スリープ後、1秒間の電流の平均値を記録
+    print("\n[5] Measuring average current over 1 second")
+    reference_current = calculate_current_average(arm, duration=1.0)
+    
+    # アームをボールに向ける
+    print(f"\n[6] Moving arm to CATCH position ({Arm.CATCH_POSITION}°)")
+    arm.set_servo_arm_angle(Arm.CATCH_POSITION, move_time=400)
+    
+    # 電流の移動平均を監視してボールキャッチを確認
+    print("\n[7] Waiting for ball catch (current drop detection)")
+    success = wait_for_current_drop(arm, reference_current, threshold_percentage=97, timeout=timeout)
+    
+    if not success:
+        print("Warning: Ball catch not confirmed, aborting...")
+        arm.set_motor_speed(0)
+        arm.set_servo_arm_angle(Arm.RUN_POSITION, move_time=500)
+        arm.set_servo_launcher_angle(Arm.LAUNCHER_RELOAD)
+        time.sleep(3)
+        return False
+    
+    # アームを走行位置へ移動
+    print(f"\n[8] Moving arm to RUN position ({Arm.RUN_POSITION}°)")
+    arm.set_servo_arm_angle(Arm.RUN_POSITION, move_time=1200)
+    time.sleep(0.5)
+    
+    # 吸引停止
+    print("\n[9] Stopping motor (suction off)")
+    arm.set_motor_speed(0)
+
+    # 終了
+    print("\n✅Catch sequence completed successfully!")
+    return True
+        
+
+def throw(arm: Arm) -> None:
+        # アームを投擲位置へ移動
+        print(f"\n[10] Moving arm to THROW position ({Arm.THROW_POSITION}°)")
+        arm.set_servo_arm_angle(Arm.THROW_POSITION, move_time=500)
+        time.sleep(0.6)
+        
+        # ランチャーサーボ開放で投擲（バネ開放）
+        print(f"\n[11] Firing! Setting launcher servo to {Arm.LAUNCHER_FIRE}°")
+        arm.set_servo_launcher_angle(Arm.LAUNCHER_FIRE)
+        time.sleep(0.5)
+        
+        # アームを走行位置へ戻す
+        print(f"\n[12] Returning arm to RUN position ({Arm.RUN_POSITION}°)")
+        arm.set_servo_arm_angle(Arm.RUN_POSITION, move_time=400)
+        time.sleep(0.5)
+
+
+
 def main():
     print("=== Catch and Throw Test Sequence ===")
     
     # Arm初期化
     arm = Arm(futaba_port='/dev/ttyAMA0',
-              arduino_port='/dev/ttyUSB0',
+              arduino_port='/dev/ttyARM',
               arm_servo_id=1,
               arm_min_angle=-90.0,
               arm_max_angle=45.0)
@@ -108,86 +183,21 @@ def main():
         return
     
     print("Connected to all devices!")
-    
-    # アームサーボのトルクON
-    print("\nEnabling arm servo torque...")
-    arm.set_servo_arm_torque(True)
-    time.sleep(0.5)
-    
+
     try:
-            
-            print("\n--- Starting Test Sequence ---")
-            
-            # 1. アームを初期位置へ移動
-            print("\n[1] Moving arm to RUN position")
-            arm.set_servo_arm_angle(Arm.RUN_POSITION, move_time=400)
-            time.sleep(0.3)
-            
-            # 2. ランチャーサーボを初期位置へセット（リロードギアを初期位置へ移動）
-            print(f"\n[2] Setting launcher servo to {Arm.LAUNCHER_RELOAD}°")
-            arm.set_servo_launcher_angle(Arm.LAUNCHER_RELOAD)
-            time.sleep(0.1)
-            
-            # 3. モーターで吸引開始
-            print("\n[3] Starting motor (suction)")
-            for i in range(5):
-                arm.set_motor_speed(i * 10)
-                time.sleep(0.1)
-            
-            # 4. ランチャーサーボをリロード（スマッシャーをリロード）
-            print(f"\n[4] Reloading launcher servo to {Arm.LAUNCHER_READY}°")
-            arm.set_servo_launcher_angle(Arm.LAUNCHER_READY)
-            time.sleep(0.5)  # 回転速度が上がるまで待機
-            
-            # スリープ後、1秒間の電流の平均値を記録
-            print("\n[5] Measuring average current over 1 second")
-            reference_current = calculate_current_average(arm, duration=1.0)
-            
-            # 5. アームをボールに向ける
-            print(f"\n[6] Moving arm to CATCH position ({Arm.CATCH_POSITION}°)")
-            arm.set_servo_arm_angle(Arm.CATCH_POSITION, move_time=400)
-            time.sleep(0.5)
-            
-            # 6. 電流の移動平均を監視してボールキャッチを確認
-            print("\n[7] Waiting for ball catch (current drop detection)")
-            success = wait_for_current_drop(arm, reference_current, threshold_percentage=95, timeout=10)
-            
-            if not success:
-                print("Warning: Ball catch not confirmed, aborting...")
-                arm.set_motor_speed(0)
-                arm.set_servo_arm_angle(Arm.THROW_POSITION, move_time=500)
-                arm.set_servo_launcher_angle(Arm.LAUNCHER_RELOAD)
-                time.sleep(3)
-                raise Exception("Test aborted due to current threshold timeout")
-            
-            # 7. アームを走行位置へ移動
-            print(f"\n[8] Moving arm to RUN position ({Arm.RUN_POSITION}°)")
-            arm.set_servo_arm_angle(Arm.RUN_POSITION, move_time=1200)
-            time.sleep(0.5)
-            
-            # 8. 吸引停止
-            print("\n[9] Stopping motor (suction off)")
-            arm.set_motor_speed(0)
-            time.sleep(2)
-            
-            # 9. アームを投擲位置へ移動
-            print(f"\n[10] Moving arm to THROW position ({Arm.THROW_POSITION}°)")
-            arm.set_servo_arm_angle(Arm.THROW_POSITION, move_time=500)
-            time.sleep(0.6)
-            
-            # 10. ランチャーサーボ開放で投擲（バネ開放）
-            print(f"\n[11] Firing! Setting launcher servo to {Arm.LAUNCHER_FIRE}°")
-            arm.set_servo_launcher_angle(Arm.LAUNCHER_FIRE)
-            time.sleep(0.5)
-            
-            # アームを走行位置へ戻す
-            print(f"\n[12] Returning arm to RUN position ({Arm.RUN_POSITION}°)")
-            arm.set_servo_arm_angle(Arm.RUN_POSITION, move_time=400)
-            time.sleep(0.5)
-            
-            # 終了
-            print("\n✓ Test sequence completed successfully!")
-            
+        print("\nEnabling arm servo torque...")
+        # アームサーボのトルクON
+        arm.set_servo_arm_torque(True)
+        time.sleep(0.5)
+        print("\n--- Starting Test Sequence ---")
+        arm.set_servo_arm_angle(Arm.RUN_POSITION, move_time=800)
+        result = catch(arm)
+        time.sleep(1.5)
+        print(f"result = {result}")
+        if result:
+            print("\n--- Proceeding to Throw ---")
+            throw(arm)
+
     except KeyboardInterrupt:
         print("\n\nTest interrupted by user")
     except Exception as e:
@@ -204,7 +214,5 @@ def main():
         arm.set_servo_arm_torque(False)
         time.sleep(0.1)
         arm.disconnect()
-        print("Test completed.")
-
 if __name__ == "__main__":
     main()
