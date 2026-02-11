@@ -28,7 +28,7 @@ Adafruit_NeoPixel pixels(NUM_OF_LED, LED_SIG, NEO_GRB + NEO_KHZ800);
 #define VOLTAGE_DIVIDER_RATIO 11.0  // 10:1 voltage divider
 #define ADC_REFERENCE_VOLTAGE 5.0   // Arduino Nano reference voltage
 #define ADC_MAX_VALUE 1023.0        // 10-bit ADC
-#define DEFAULT_SERVO1_ANGLE 80.0   // Default servo1 position in degrees
+#define DEFAULT_SERVO1_ANGLE 180.0   // Default servo1 position in degrees
 #define DEFAULT_SERVO2_ANGLE 180.0  // Default servo2 position in degrees
 
 // Objects
