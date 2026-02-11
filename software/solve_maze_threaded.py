@@ -164,9 +164,9 @@ def initialize_arm_dummy() -> ArmDummy:
     return arm
 
 
-def initialize_arm() -> Arm:
+def initialize_arm(arduino_port: str = '/dev/ttyARM') -> Arm:
     arm = Arm(futaba_port='/dev/ttyAMA0',
-          arduino_port='/dev/ttyUSB0',
+          arduino_port=arduino_port,
           arm_servo_id=1,
           arm_min_angle=-90.0,
           arm_max_angle=45.0)
@@ -547,7 +547,8 @@ def show_final_results(robot: Robot) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description='迷路を解くスクリプト（スレッド版）')
-    ap.add_argument('--port', required=True, help='シリアルポート (例: /dev/ttyUSB0)')
+    ap.add_argument('--mob-port', default='/dev/ttyMOB', help='MOBシリアルポート (デフォルト: /dev/ttyMOB)')
+    ap.add_argument('--arm-port', default='/dev/ttyARM', help='ARMシリアルポート (デフォルト: /dev/ttyARM)')
     ap.add_argument('--baud', type=int, default=3000000, help='ボーレート (デフォルト: 3000000)')
     ap.add_argument('--timeout', type=float, default=5.0, help='DONE待機タイムアウト秒 (デフォルト: 5.0)')
     ap.add_argument('--maze-size', type=int, default=16, help='迷路サイズ (デフォルト: 16)')
@@ -558,7 +559,7 @@ def main() -> int:
     args = ap.parse_args()
     
     # シリアルポート接続
-    ser = serial.Serial(port=args.port, baudrate=args.baud, timeout=0.1)
+    ser = serial.Serial(port=args.mob_port, baudrate=args.baud, timeout=0.1)
     mob_thread = None
     ball_thread = None
     arm = None
@@ -586,7 +587,7 @@ def main() -> int:
         if args.use_dummy_arm:
             arm = initialize_arm_dummy()
         else:
-            arm = initialize_arm()
+            arm = initialize_arm(args.arm_port)
         
         # ロボット初期化
         mob_thread = initialize_mobile_base(ser, timeout=args.timeout)

@@ -7,7 +7,7 @@ Protocol
 - ESP32 -> PC messages: "#<message>\n"
 
 Usage:
-  python3 pc_comm.py --port /dev/ttyUSB0 --baud 3000000
+  python3 pc_comm.py --port /dev/ttyMOB --baud 3000000
 
 Keys:
   q           Quit
@@ -378,7 +378,7 @@ def draw(stdscr, client: SerialClient) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument('--port', required=True, help='Serial port, e.g. /dev/ttyUSB0')
+    ap.add_argument('--port', required=True, help='Serial port, e.g. /dev/ttyMOB')
     ap.add_argument('--baud', type=int, default=3000000, help='Baudrate (default: 3000000)')
     args = ap.parse_args()
 

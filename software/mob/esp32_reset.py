@@ -8,7 +8,7 @@ import serial
 import time
 import sys
 
-def esp32_reset(port="/dev/ttyUSB0"):
+def esp32_reset(port="/dev/ttyMOB"):
     """ESP32を簡単にリセット"""
     try:
         print(f"Resetting ESP32 on {port}...")
@@ -37,11 +37,11 @@ def esp32_reset(port="/dev/ttyUSB0"):
         return False
 
 if __name__ == "__main__":
-    port = sys.argv[1] if len(sys.argv) > 1 else "/dev/ttyUSB0"
+    port = sys.argv[1] if len(sys.argv) > 1 else "/dev/ttyMOB"
     
     print("ESP32 Simple Reset Tool")
     print("Usage: python3 esp32_reset.py [port]")
-    print("Example: python3 esp32_reset.py /dev/ttyUSB0")
+    print("Example: python3 esp32_reset.py /dev/ttyMOB")
     print("-" * 50)
     
     if esp32_reset(port):

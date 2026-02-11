@@ -10,7 +10,7 @@ Notes:
 - Ignores other incoming lines (SEN stream, # messages, etc.).
 
 Usage:
-  python3 fwd.py --port /dev/ttyUSB0 --baud 3000000
+  python3 fwd.py --port /dev/ttyMOB --baud 3000000
 """
 
 from __future__ import annotations
@@ -432,7 +432,7 @@ def wait_done(ser: serial.Serial, timeout_s: float) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--port", required=True, help="Serial port, e.g. /dev/ttyUSB0")
+    ap.add_argument("--port", required=True, help="Serial port, e.g. /dev/ttyMOB")
     ap.add_argument("--baud", type=int, default=3000000, help="Baudrate (default: 3000000)")
     ap.add_argument("--timeout", type=float, default=5.0, help="DONE wait timeout seconds (default: 5.0)")
     args = ap.parse_args()

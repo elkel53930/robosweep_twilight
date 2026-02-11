@@ -147,7 +147,7 @@ class Arm(ArmBase):
     def __init__(self, 
                  futaba_port='/dev/ttyAMA0', 
                  futaba_baudrate=115200,
-                 arduino_port='/dev/ttyUSB0', 
+                 arduino_port='/dev/ttyARM', 
                  arduino_baudrate=115200,
                  arm_servo_id=1,
                  arm_min_angle=-90.0,
@@ -579,7 +579,7 @@ class ArmDummy(ArmBase):
     def __init__(self, 
                  futaba_port='/dev/ttyAMA0', 
                  futaba_baudrate=115200,
-                 arduino_port='/dev/ttyUSB0', 
+                 arduino_port='/dev/ttyARM', 
                  arduino_baudrate=115200,
                  arm_servo_id=1,
                  arm_min_angle=-90.0,
@@ -674,7 +674,7 @@ def main():
     
     try:
         with Arm(futaba_port='/dev/ttyAMA0', 
-                 arduino_port='/dev/ttyUSB0',
+                 arduino_port='/dev/ttyARM',
                  arm_servo_id=1,
                  arm_min_angle=-90.0,
                  arm_max_angle=45.0) as arm:

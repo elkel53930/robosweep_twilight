@@ -74,7 +74,7 @@ def relative_to_action(current_heading: Direction, next_heading: Direction) -> s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description='迷路を解くスクリプト')
-    ap.add_argument('--port', required=True, help='シリアルポート (例: /dev/ttyUSB0)')
+    ap.add_argument('--port', required=True, help='シリアルポート (例: /dev/ttyMOB)')
     ap.add_argument('--baud', type=int, default=3000000, help='ボーレート (デフォルト: 3000000)')
     ap.add_argument('--timeout', type=float, default=5.0, help='DONE待機タイムアウト秒 (デフォルト: 5.0)')
     ap.add_argument('--maze-size', type=int, default=16, help='迷路サイズ (デフォルト: 16)')
