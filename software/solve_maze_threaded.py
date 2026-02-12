@@ -21,11 +21,19 @@ from mob.mobile_base_threaded import MobileBaseThread
 from mob.esp32_reset import esp32_reset
 from search.micromouse_algorithms import AdachiExplorer, Direction, INF
 from rpi.camera_py.ball_detect_threaded import BallDetectThread
+from rpi.camera_py.interpolate_position import PositionInterpolator
 from arm.arm import Arm, ArmDummy, ArmBase
 from dataclasses import dataclass
 from math import fabs
 import arm.catch_throw as catch_throw
+import math
+import os
 
+# 絶対パスを生成してcsvファイルを指定
+# ファイルはこのスクリプトからみて./rpi/camera_py/calibration_data_with_mirror.csvに置いておく必要がある
+dir_path = os.path.dirname(os.path.abspath(__file__))
+csv_path = os.path.join(dir_path, 'rpi', 'camera_py', 'calibration_data_with_mirror.csv')
+position_interpolator = PositionInterpolator(csv_path)
 
 @dataclass
 class Robot:
@@ -309,7 +317,7 @@ def catch_ball(robot: Robot) -> bool:
         robot.mob_thread.wait_response()
         time.sleep(0.5)
     
-    def detect() -> None:
+    def detect() -> tuple[bool, dict]:
         for i in range(10):
             d, info = robot.ball_thread.is_ball_detected()
             if d:
@@ -324,35 +332,44 @@ def catch_ball(robot: Robot) -> bool:
     
     # ボールを再度確認
     # 正面を向く
-    for _ in range(3):
+    repeat = 10
+    detect_results= []
+    time.sleep(1)
+    for _ in range(repeat):
         detected, ball_info = detect()
-        print(f"#ボール再確認: detected={detected}, info={ball_info}")
-        if not detected:
-            return_original_position()
-            return False
-        center_x = ball_info['center'][0] # 中心のX座標
-        angle = (320 - center_x) / 600
-        print(f"angle={angle:.4f} rad")
-        if fabs(angle) < 0.01:
-            break
+        if detected:
+            detect_results.append(ball_info)
+        time.sleep(0.1)
+    
+    if len(detect_results) < 7:
+        print("#ボールが十分な回数見つかりませんでした")
+        return False
+
+    xs = [info['center'][0] for info in detect_results]
+    ys = [info['center'][1] for info in detect_results]
+    # ソートして外れ値を除去
+    xs.sort()
+    ys.sort()
+    xs = xs[2:-2]
+    ys = ys[2:-2]
+    avg_x = sum(xs) / len(xs)
+    avg_y = sum(ys) / len(ys)
+    print(f"#ボール位置の平均: ({avg_x:.2f}, {avg_y:.2f})")
+
+    angle, distance = position_interpolator.interpolate(avg_x, avg_y, True)    
+    # angleの単位はπラジアン -> ラジアンに変換
+    angle *= math.pi
+    # ボールから170mm手前に移動するため、距離を減算
+    distance -= 170
+    
+    print(f"angle={angle:.4f} rad")
+    if fabs(angle) > 0.01:
         moved_angle += angle
         robot.mob_thread.send_command('TURN', angle)
         robot.mob_thread.wait_response()
-        time.sleep(0.5)
-        robot.ball_thread.wait_detection_update()
     
-    # 距離を調整
-    for _ in range(3):
-        detected, ball_info = detect()
-        print(f"#ボール再確認: detected={detected}, info={ball_info}")
-        if not detected:
-            return_original_position()
-            return False
-        radius = ball_info['radius']
-        distance = (105 - radius) * 1.5
-        print(f"radius={radius:.2f}, distance={distance:.2f} mm")
-        if fabs(distance) < 2:
-            break
+    print(f"distance={distance:.2f} mm")
+    if fabs(distance) > 2:
         moved_distance += distance
         if distance < 0:
             robot.mob_thread.send_command('JOGBACK', -distance)    
@@ -360,7 +377,6 @@ def catch_ball(robot: Robot) -> bool:
             robot.mob_thread.send_command('JOGFWD', distance)
         robot.mob_thread.wait_response()
         time.sleep(0.5)
-        robot.ball_thread.wait_detection_update()
     
     print(f"#Moved angle total: {moved_angle:.4f} rad, distance total: {moved_distance:.2f} mm")
     # 位置調整完了
@@ -395,7 +411,7 @@ def handle_ball(robot: Robot, last_command: tuple, front_wall_check: bool=True) 
     detected, ball_info = robot.ball_thread.is_ball_detected()
     robot.ball_thread.save_next_frame()
     if detected:
-        print(f"#ボール検出{ball_info}")
+        print(f"#👺ボール検出{ball_info}")
         
         # 眼の前に壁がないか確認
         sensor_data, _ = get_sensor_data_with_retry(robot)

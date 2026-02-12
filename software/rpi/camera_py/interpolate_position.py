@@ -2,20 +2,19 @@
 """
 interpolate_position.py
 
-キャリブレーションデータを使って、画像上の検出結果（X, Y, 直径）から
+キャリブレーションデータを使って、画像上の検出結果（X, Y）から
 実際の角度と距離を線形補間で推定するスクリプト
 
 使用方法:
-    python3 interpolate_position.py <x> <y> <diameter> [calibration_csv]
+    python3 interpolate_position.py <x> <y> [calibration_csv]
     
     x: 検出されたボール中心のX座標 (pixels)
     y: 検出されたボール中心のY座標 (pixels)
-    diameter: 検出されたボールの直径 (pixels)
     calibration_csv: キャリブレーションCSVファイル（デフォルト: calibration_data_with_mirror.csv）
 
 例:
-    python3 interpolate_position.py 320 180 100
-    python3 interpolate_position.py 320 180 100 calibration_data.csv
+    python3 interpolate_position.py 320 180
+    python3 interpolate_position.py 320 180 calibration_data.csv
 """
 
 import csv
@@ -44,7 +43,6 @@ class PositionInterpolator:
         
         x_list = []
         y_list = []
-        diameter_list = []
         angle_list = []
         distance_list = []
         
@@ -53,19 +51,17 @@ class PositionInterpolator:
             for row in reader:
                 x_list.append(float(row['detected_x_px']))
                 y_list.append(float(row['detected_y_px']))
-                diameter_list.append(float(row['detected_diameter_px']))
                 angle_list.append(float(row['input_angle_pi_rad']))
                 distance_list.append(float(row['input_distance_mm']))
         
-        # numpy配列に変換
-        self.input_points = np.column_stack([x_list, y_list, diameter_list])
+        # numpy配列に変換（2次元: X, Y）
+        self.input_points = np.column_stack([x_list, y_list])
         self.angle_values = np.array(angle_list)
         self.distance_values = np.array(distance_list)
         
         print(f"Loaded {len(x_list)} calibration points")
         print(f"  X range: {min(x_list):.1f} - {max(x_list):.1f}")
         print(f"  Y range: {min(y_list):.1f} - {max(y_list):.1f}")
-        print(f"  Diameter range: {min(diameter_list):.1f} - {max(diameter_list):.1f}")
         print(f"  Angle range: {min(angle_list):.4f} - {max(angle_list):.4f} πrad")
         print(f"  Distance range: {min(distance_list):.1f} - {max(distance_list):.1f} mm")
     
@@ -83,20 +79,19 @@ class PositionInterpolator:
         
         print("Interpolators ready")
     
-    def interpolate(self, x, y, diameter, verbose=True):
+    def interpolate(self, x, y, verbose=True):
         """
         画像座標から角度と距離を補間
         
         Args:
             x: 画像上のX座標 (pixels)
             y: 画像上のY座標 (pixels)
-            diameter: 画像上の直径 (pixels)
             verbose: 詳細情報を表示するか
         
         Returns:
             (angle_pi_rad, distance_mm): 角度（πラジアン）と距離（mm）のタプル
         """
-        point = np.array([[x, y, diameter]])
+        point = np.array([[x, y]])
         
         # 線形補間を試みる
         angle = self.angle_interpolator(point)[0]
@@ -116,7 +111,6 @@ class PositionInterpolator:
             print(f"Input:")
             print(f"  X: {x:.2f} px")
             print(f"  Y: {y:.2f} px")
-            print(f"  Diameter: {diameter:.2f} px")
             print(f"\nOutput:")
             print(f"  Angle: {angle:.4f} πrad ({angle * 180:.2f}°)")
             print(f"  Distance: {distance:.2f} mm ({distance / 10:.2f} cm)")
@@ -129,7 +123,7 @@ class PositionInterpolator:
         複数の点を一括で補間
         
         Args:
-            points: [(x, y, diameter), ...] のリスト
+            points: [(x, y), ...] のリスト
         
         Returns:
             [(angle, distance), ...] のリスト
@@ -147,45 +141,44 @@ class PositionInterpolator:
         
         return list(zip(angles, distances))
     
-    def find_nearest_calibration_point(self, x, y, diameter, n=3):
+    def find_nearest_calibration_point(self, x, y, n=3):
         """
         最も近いキャリブレーションポイントを見つける
         
         Args:
-            x, y, diameter: 入力座標
+            x, y: 入力座標
             n: 返すポイント数
         
         Returns:
             最も近いn個のポイント情報のリスト
         """
-        point = np.array([x, y, diameter])
+        point = np.array([x, y])
         distances = np.linalg.norm(self.input_points - point, axis=1)
         nearest_indices = np.argsort(distances)[:n]
         
         print(f"\n=== Nearest {n} Calibration Points ===")
         for i, idx in enumerate(nearest_indices, 1):
             dist = distances[idx]
-            x_cal, y_cal, d_cal = self.input_points[idx]
+            x_cal, y_cal = self.input_points[idx]
             angle_cal = self.angle_values[idx]
             distance_cal = self.distance_values[idx]
             print(f"{i}. Distance: {dist:.2f}")
-            print(f"   X={x_cal:.1f}, Y={y_cal:.1f}, D={d_cal:.1f}")
+            print(f"   X={x_cal:.1f}, Y={y_cal:.1f}")
             print(f"   Angle={angle_cal:.4f} πrad, Distance={distance_cal:.1f} mm")
 
 
 def main():
     """メイン関数"""
-    if len(sys.argv) < 4:
+    if len(sys.argv) < 3:
         print(__doc__)
         sys.exit(1)
     
     try:
         x = float(sys.argv[1])
         y = float(sys.argv[2])
-        diameter = float(sys.argv[3])
-        calibration_csv = sys.argv[4] if len(sys.argv) > 4 else 'calibration_data_with_mirror.csv'
+        calibration_csv = sys.argv[3] if len(sys.argv) > 3 else 'calibration_data_with_mirror.csv'
     except ValueError:
-        print("Error: X, Y, and Diameter must be numeric values")
+        print("Error: X and Y must be numeric values")
         sys.exit(1)
     
     print("=" * 50)
@@ -197,10 +190,10 @@ def main():
         interpolator = PositionInterpolator(calibration_csv)
         
         # 補間を実行
-        angle, distance = interpolator.interpolate(x, y, diameter)
+        angle, distance = interpolator.interpolate(x, y)
         
         # 最近傍ポイントを表示
-        interpolator.find_nearest_calibration_point(x, y, diameter, n=3)
+        interpolator.find_nearest_calibration_point(x, y, n=3)
         
         print("\n" + "=" * 50)
         
