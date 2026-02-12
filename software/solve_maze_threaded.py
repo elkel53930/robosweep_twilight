@@ -533,7 +533,7 @@ def run_maze_exploration(robot: Robot, max_steps: int) -> str:
 #                print("\n=== ボールキャッチ成功 ===")
 #                robot.mob_thread.send_command('STOP', FWD_SPEED, FWD_ACC, 90)
 #                robot.mob_thread.wait_response()
-#                return 'CATCHTED'
+#                return 'CATCHTED'                
 
         # 迷路マップ表示（10ステップごと）
         if step_count % 10 == 0:

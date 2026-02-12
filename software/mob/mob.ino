@@ -89,16 +89,18 @@ static constexpr float TURN_MIN_SPEED_MPS = 0.04f;
 static constexpr float TURN_DONE_TOL_RAD = 0.03f;     // 約1.7deg
 static constexpr float TURN_ACCEL_MPS2 = 1.2f;        // 旋回時の車輪速度加速度制限 [m/s^2]
 
-// 直進時の角度フィードバックゲイン（いったん
-static constexpr float ANGLE_FB_GAIN = 0.5f;  // [m/s]/rad
+// 直進時の角度フィードバックゲイン
+static constexpr float ANGLE_FB_GAIN = 0.3f;  // [m/s]/rad
 
 // 直進時の角速度フィードバックゲイン（角速度→0）
-static constexpr float ANGULAR_RATE_FB_GAIN = 0.02f;  // [m/s]/(rad/s)
+static constexpr float ANGULAR_RATE_FB_GAIN = 0.01f;  // [m/s]/(rad/s)
 
 // 壁センサフィードバックパラメータ
 static constexpr float WALL_SENSOR_THRESHOLD = 100.0f;  // 壁検出閾値
-static constexpr float WALL_SENSOR_TARGET = 240.0f;     // 中央時の目標値
-static constexpr float WALL_SENSOR_GAIN = 0.0005f;      // 壁センサフィードバックゲイン [m/s] per sensor unit
+static constexpr float WALL_SENSOR_TARGET_LS = 250.0f;     // 中央時の目標値
+static constexpr float WALL_SENSOR_TARGET_RS = 234.0f;     // 中央時の目標値
+static constexpr float WALL_SENSOR_GAIN = 0.000005f;      // 壁センサフィードバックゲイン [m/s] per sensor unit
+static constexpr float WALL_CORRECTION_CUT_OFF_DISTANCE = 30.0f; // 壁センサ補正を行う残距離の閾値 [mm]
 
 // 壁センサを使用した横方向補正値を計算
 // 戻り値: 正の値は右に寄せる補正、負の値は左に寄せる補正
@@ -113,16 +115,16 @@ static float calculate_wall_correction(const Sensors& sensors_ref) {
     
     if (rs_valid && ls_valid) {
         // 両方のセンサが有効な場合：両方を使用
-        const float rs_error = WALL_SENSOR_TARGET - static_cast<float>(rs_val);
-        const float ls_error = static_cast<float>(ls_val) - WALL_SENSOR_TARGET;
+        const float rs_error = WALL_SENSOR_TARGET_RS - static_cast<float>(rs_val);
+        const float ls_error = static_cast<float>(ls_val) - WALL_SENSOR_TARGET_LS;
         correction = (rs_error + ls_error) * 0.5f * WALL_SENSOR_GAIN;
     } else if (ls_valid) {
         // 左センサのみ有効：左センサを使用して右に寄せる
-        const float ls_error = static_cast<float>(ls_val) - WALL_SENSOR_TARGET;
+        const float ls_error = static_cast<float>(ls_val) - WALL_SENSOR_TARGET_LS;
         correction = ls_error * WALL_SENSOR_GAIN;
     } else if (rs_valid) {
         // 右センサのみ有効：右センサを使用して左に寄せる
-        const float rs_error = WALL_SENSOR_TARGET - static_cast<float>(rs_val);
+        const float rs_error = WALL_SENSOR_TARGET_RS - static_cast<float>(rs_val);
         correction = rs_error * WALL_SENSOR_GAIN;
     }
     // 両方無効な場合は correction = 0.0f のまま
@@ -626,8 +628,15 @@ void updateForward(float dt_s) {
 
         fwd_v_cmd_mmps = v_next;
         const float v_cmd_mps = fwd_v_cmd_mmps / 1000.0f;
+
+        // 壁センサフィードバック（残距離15mm未満ではオフ）
+        float wall_correction = 0.0f;
+        if (remain_mm >= WALL_CORRECTION_CUT_OFF_DISTANCE) {
+            wall_correction = calculate_wall_correction(sensors);
+        }
         
         // 角度フィードバック: 現在角度と目標角度の差分
+        fwd_target_angle_rad -= wall_correction;
         const float angle_error = sensors.get_angle() - fwd_target_angle_rad;
         const float angle_correction = ANGLE_FB_GAIN * angle_error;
 
@@ -635,8 +644,6 @@ void updateForward(float dt_s) {
         const float gyro_z = sensors.get_gyro_z();
         const float rate_correction = ANGULAR_RATE_FB_GAIN * gyro_z;
         
-        // 壁センサフィードバック
-        const float wall_correction = calculate_wall_correction(sensors);
 
         {
             static int dbg_count = 0;
@@ -644,14 +651,14 @@ void updateForward(float dt_s) {
             if (dbg_count >= 100) {
                 dbg_count = 0;
                 char msg[128];
-                snprintf(msg, sizeof(msg), "#WALLCORR: RS=%u LS=%u CORR=%.4f\n",
-                         sensors.get_rs(), sensors.get_ls(), wall_correction);
+                snprintf(msg, sizeof(msg), "#WALCOR: RS=%u LS=%u CORR=%.4f REM=%.1f\n",
+                         sensors.get_rs(), sensors.get_ls(), wall_correction, remain_mm);
                 enqueue_msg_line(msg);
             }
         }
         
         // 合計補正値
-        const float lateral_correction = angle_correction + rate_correction + wall_correction;
+        const float lateral_correction = angle_correction + rate_correction;
         
         target_vr_mps = v_cmd_mps;
         target_vl_mps = v_cmd_mps;
@@ -750,24 +757,9 @@ void updateStop(float dt_s) {
         // 角速度フィードバック: 角速度をゼロに保つ
         const float gyro_z = sensors.get_gyro_z();
         const float rate_correction = ANGULAR_RATE_FB_GAIN * gyro_z;
-        
-        // 壁センサフィードバック
-        const float wall_correction = calculate_wall_correction(sensors);
 
-        {
-            static int dbg_count = 0;
-            dbg_count++;
-            if (dbg_count >= 100) {
-                dbg_count = 0;
-                char msg[128];
-                snprintf(msg, sizeof(msg), "#WALLCORR: RS=%u LS=%u CORR=%.4f\n",
-                         sensors.get_rs(), sensors.get_ls(), wall_correction);
-                enqueue_msg_line(msg);
-            }
-        }
-        
         // 合計補正値
-        const float lateral_correction = angle_correction + rate_correction + wall_correction;
+        const float lateral_correction = angle_correction + rate_correction; // STOPでは壁センサ補正は行わない
 
         target_vr_mps = v_cmd_mps;
         target_vl_mps = v_cmd_mps;
