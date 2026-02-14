@@ -148,12 +148,13 @@ def initialize_explorer(maze_size: int, goals: list[tuple[int, int]]) -> AdachiE
     print(f"#初期壁情報: 外周の壁と(0,0)の右壁を設定")
     
     # ロボスイープ特有の壁
-    for x in range(maze_size):
-        explorer.mark_wall(x, 7, Direction.NORTH, True) # 相手チームとの境界線
-
-    explorer.mark_wall(15, 0, Direction.WEST, True)
-    explorer.mark_wall(0, 7, Direction.EAST, True)
-    explorer.mark_wall(15, 7, Direction.WEST, True)
+#    for x in range(maze_size):
+#        explorer.mark_wall(x, 7, Direction.NORTH, True) # 相手チームとの境界線
+#
+#    # スタート位置が４箇所ある
+#    explorer.mark_wall(15, 0, Direction.WEST, True)
+#    explorer.mark_wall(0, 7, Direction.EAST, True)
+#    explorer.mark_wall(15, 7, Direction.WEST, True)
 
     print("迷路初期化完了")    
     print(explorer.render_text(show_goal=goals, show_distance=True))
@@ -272,24 +273,21 @@ def generate_action(robot: Robot, action: str) -> list[tuple]:
         return [
             ('STOP', FWD_SPEED, FWD_ACC, 90),
             ('TURN', 1.5708),  # pi/2
-            ('JOGBACK', 20),
-            ('FWD', FWD_SPEED, FWD_ACC, 110)
+            ('FWD', FWD_SPEED, FWD_ACC, 90)
         ]
     elif action == 'right':
         # 停止 → 右旋回 → 前進
         return [
             ('STOP', FWD_SPEED, FWD_ACC, 90),
             ('TURN', -1.5708),  # -pi/2
-            ('JOGBACK', 20),
-            ('FWD', FWD_SPEED, FWD_ACC, 110)
+            ('FWD', FWD_SPEED, FWD_ACC, 90)
         ]
     elif action == 'back':
         # 停止 → 180度旋回 → 前進
         return [
             ('STOP', FWD_SPEED, FWD_ACC, 90),
             ('TURN', 3.14159),  # pi
-            ('JOGBACK', 20),
-            ('FWD', FWD_SPEED, FWD_ACC, 110)
+            ('FWD', FWD_SPEED, FWD_ACC, 90)
         ]
     else:
         raise ValueError(f"Unknown action: {action}")
@@ -332,14 +330,19 @@ def wait_for_done(robot: Robot, max_wait_seconds: float = 10.0) -> bool:
     
         time.sleep(0.01)
 
-    print(f"#Warning: DONE応答のタイムアウト ({max_wait_seconds}秒)")
+    print(f"#Warning: ❕DONE応答のタイムアウト ({max_wait_seconds}秒)")
     return False
 
-def catch_ball(robot: Robot) -> bool:
+def catch_ball(robot: Robot, state: State) -> bool:
     detected = False
     ball_info = None
     moved_angle = 0.0
     moved_distance = 0.0
+    
+    if state == State.SEARCH_WITH_BALL:
+        print("#すでに持っているボールを落とします")
+        robot.arm.set_servo_launcher_angle(Arm.LAUNCHER_RELOAD, 500)
+        time.sleep(1)
     
     def return_original_position():
         # 移動分戻る
@@ -447,7 +450,15 @@ def reset_sensors(robot: Robot) -> None:
     robot.mob_thread.send_command('RANG')
     robot.mob_thread.wait_response()
     
-def catch_ball_when_detect(robot: Robot, last_command: tuple, front_wall_check: bool=True) -> str:
+def catch_ball_when_detect(robot: Robot, last_command: tuple, state: State, front_wall_check: bool=True) -> str:
+    """
+    戻り値
+    - 'CATCHED': ボールキャッチ成功
+    - 'BALL_LOST': ボールを失った（SEARCH_WITH_BALL状態でキャッチ失敗）
+    - 'CATCH_FAILED': ボールキャッチ失敗（SEARCH状態でキャッチ失敗）
+    - 'NOT_DETECTED': ボール未検出
+    """
+    
     print("#Command done")
     # コマンドの間にボール検出
     detected, ball_info = robot.ball_thread.is_ball_detected()
@@ -470,17 +481,32 @@ def catch_ball_when_detect(robot: Robot, last_command: tuple, front_wall_check: 
             else:
                 time.sleep(0.5)
             
-            if catch_ball(robot):
-                print("#ボールキャッチ成功")
-                return "CATCHED"
+            if catch_ball(robot, state):
+                if state == State.SEARCH_WITH_BALL:
+                    print("#ボールを捨ててボールキャッチ成功")
+                    return "NEW_BALL_CATCHED"
+                elif state == State.SEARCH:
+                    print("#ボールキャッチ成功")
+                    return "CATCHED"
             else:
-                print("#ボールキャッチ失敗")
-                return "CATCH_FAILED"
+                if state == State.SEARCH_WITH_BALL:
+                    print("#新しいボールのキャッチに失敗")
+                    return "BALL_LOST"
+                elif state == State.SEARCH:
+                    print("#ボールキャッチ失敗")
+                    return "CATCH_FAILED"
         else:
             print("#前壁があるためボールキャッチをスキップ")
             
         reset_sensors(robot)
         return "NOT_DETECTED"
+    
+
+def update_maze_map(robot: Robot) -> None:
+    sensor_data, _ = get_sensor_data_with_retry(robot)
+    left_wall, front_wall, right_wall = detect_walls(sensor_data)
+    robot.explorer.update_walls_from_relative(left_wall, front_wall, right_wall) # 壁を更新
+
 
 def run_maze_exploration(robot: Robot, max_steps: int, state: State) -> str:
     """迷路探索のメインループを実行
@@ -496,6 +522,7 @@ def run_maze_exploration(robot: Robot, max_steps: int, state: State) -> str:
         - 'NO_PATH': ゴールへの道がない
         - 'SENSOR_ERROR': センサーエラー多発
         - 'MAX_STEPS': 最大ステップ数到達
+        - 'BALL_LOST': ボールを失った（SEARCH_WITH_BALL状態でキャッチ失敗）
     """
     
     # TODO : ボールを持って走行中にボールを発見したケース
@@ -511,12 +538,27 @@ def run_maze_exploration(robot: Robot, max_steps: int, state: State) -> str:
     cmd = ('FWD', FWD_SPEED, FWD_ACC, 90) # 最初の前進コマンド
     robot.mob_thread.send_command(*cmd)
     wait_for_done(robot)
-    ball_result = catch_ball_when_detect(robot,cmd,front_wall_check=False)
+    ball_result = catch_ball_when_detect(robot, cmd, state, front_wall_check=False)
     if ball_result == "CATCHED":
         print("\n=== ボールキャッチ成功 ===")
+        update_maze_map(robot) # 壁情報を更新
         robot.mob_thread.send_command('STOP', FWD_SPEED, FWD_ACC, 90)
         robot.mob_thread.wait_response()
         return 'CATCHTED'
+    elif ball_result == "CATCH_FAILED":
+        print("\n=== ボールキャッチ失敗 ===")
+        update_maze_map(robot) # 壁情報を更新
+        robot.mob_thread.send_command('STOP', FWD_SPEED, FWD_ACC, 90)
+        robot.mob_thread.wait_response()
+        return 'CATCH_FAILED'
+    elif ball_result == "NEW_BALL_CATCHED" or ball_result == "NOT_DETECTED":
+        pass # 何もせず続行
+    elif ball_result == "BALL_LOST":
+        print("\n=== ボールを失った ===")
+        update_maze_map(robot) # 壁情報を更新
+        robot.mob_thread.send_command('STOP', FWD_SPEED, FWD_ACC, 90)
+        robot.mob_thread.wait_response()
+        return 'BALL_LOST'
     
     step_count = 0
     consecutive_sensor_failures = 0
@@ -590,16 +632,21 @@ def run_maze_exploration(robot: Robot, max_steps: int, state: State) -> str:
                 print(f"#Warning: コマンド {i+1}/{len(command_queue)} の応答待機に失敗")
                 return "EXIT"
             if ball_result != "CATCHED": # すでにボールキャッチ成功している場合は以降のコマンド実行後もボール検出をスキップ
-                ball_result = catch_ball_when_detect(robot,last_command, front_wall_check=last_command[0]=='STOP')
+                ball_result = catch_ball_when_detect(robot,last_command, state, front_wall_check=last_command[0]=='STOP')
         
-        if ball_result == "CATCHED":
+        if state == State.SEARCH and ball_result == "CATCHED":
             print("\n=== 🟡ボールキャッチ成功 ===")
             sensor_data, _ = get_sensor_data_with_retry(robot)
             left_wall, front_wall, right_wall = detect_walls(sensor_data)
             robot.explorer.update_walls_from_relative(left_wall, front_wall, right_wall) # 壁を更新
             robot.mob_thread.send_command('STOP', FWD_SPEED, FWD_ACC, 90)
             robot.mob_thread.wait_response()
-            return 'CATCHTED'                
+            return 'CATCHTED'
+        elif state == State.SEARCH_WITH_BALL and ball_result == "BALL_LOST":
+            print("\n=== ❌ボールを失った ===")
+            robot.mob_thread.send_command('STOP', FWD_SPEED, FWD_ACC, 90)
+            robot.mob_thread.wait_response()
+            return 'BALL_LOST'
 
         # 迷路マップ表示（10ステップごと）
         if step_count % 10 == 0:
@@ -734,6 +781,8 @@ def main() -> int:
                 print("センサーエラーが多発したため中断しました。")
             elif result == 'MAX_STEPS':
                 print(f"最大ステップ数 {args.max_steps} に到達しました。")
+            elif result == 'BALL_LOST':
+                print("ボールを失いました。")
             elif result == 'EXIT':
                 print("探索を終了します。")
                 return 0
@@ -753,31 +802,49 @@ def main() -> int:
                     next_goals = THROW_POSITION
                     state = State.SEARCH_WITH_BALL
                 else:
+                    # GOAL_REACHED, NO_PATH, SENSOR_ERROR, MAX_STEPSのいずれの場合も、次は訪れていないマスを優先して探索する
                     next_goals = choice_next_goal(robot.explorer)
             elif state == State.SEARCH_WITH_BALL:
-                # 投擲位置に到着
-                print(f"\n=== ボール投擲位置に到着 ===")
-                # 北を向き、ボールを投げる
-                current_heading = robot.explorer.pose.heading
-                action = relative_to_action(current_heading, Direction.NORTH)
-                print(f"#Current heading: {current_heading.name}")
-                print(f"#Turning to NORTH for throwing. Action: {action}")
-                if action == "fwd":
-                    pass
-                elif action == "left":
-                    robot.mob_thread.send_command('TURN', 1.5708)  # pi/2
-                    wait_for_done(robot)
-                elif action == "right":
-                    robot.mob_thread.send_command('TURN', -1.5708)  # -pi/2
-                    wait_for_done(robot)
-                elif action == "back":
-                    robot.mob_thread.send_command('TURN', 3.14159)  # pi
-                    wait_for_done(robot)
-                # ボール投げ
-                catch_throw.throw(robot.arm) 
-                robot.explorer.pose.heading = Direction.NORTH # 北向き
-                state = State.SEARCH # 投擲後は再び探索状態に戻る
-                next_goals = choice_next_goal(robot.explorer)
+                if result == 'GOAL_REACHED':
+                    # 投擲位置に到着
+                    print(f"\n=== ボール投擲位置に到着 ===")
+                    # 北を向き、ボールを投げる
+                    current_heading = robot.explorer.pose.heading
+                    action = relative_to_action(current_heading, Direction.NORTH)
+                    print(f"#Current heading: {current_heading.name}")
+                    print(f"#Turning to NORTH for throwing. Action: {action}")
+                    if action == "fwd":
+                        pass
+                    elif action == "left":
+                        robot.mob_thread.send_command('TURN', 1.5708)  # pi/2
+                        wait_for_done(robot)
+                    elif action == "right":
+                        robot.mob_thread.send_command('TURN', -1.5708)  # -pi/2
+                        wait_for_done(robot)
+                    elif action == "back":
+                        robot.mob_thread.send_command('TURN', 3.14159)  # pi
+                        wait_for_done(robot)
+                    # ボール投げ
+                    catch_throw.throw(robot.arm) 
+                    robot.explorer.pose.heading = Direction.NORTH # 北向き
+                    state = State.SEARCH # 投擲後は再び探索状態に戻る
+                    next_goals = choice_next_goal(robot.explorer)
+                elif result == 'BALL_LOST':
+                    print(f"\n=== ボールを失いました。探索を続行します ===")
+                    state = State.SEARCH
+                    next_goals = choice_next_goal(robot.explorer)
+                elif result in ['SENSOR_ERROR', 'MAX_STEPS']:
+                    print(f"\n=== 状態遷移: {result} → SEARCH ===")
+                    state = State.SEARCH
+                    next_goals = choice_next_goal(robot.explorer)
+                else:
+                    # CATCHED, NO_PATHが発生
+                    print("❌❌❌❌❌❌❌❌❌❌")
+                    print(f"予期しない状態遷移です。探索を続行します。state={state}, result={result}")
+                    print("Launcher servoをリロード位置に戻します")
+                    robot.arm.set_servo_launcher_angle(Arm.LAUNCHER_RELOAD, 500)
+                    print("❌❌❌❌❌❌❌❌❌❌")
+                    next_goals = choice_next_goal(robot.explorer)
 
             # 新たなゴールを設定して探索再開
             robot.explorer.set_goals(next_goals)
