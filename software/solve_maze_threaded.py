@@ -347,10 +347,15 @@ def catch_ball(robot: Robot) -> bool:
         detected, ball_info = detect()
         if detected:
             detect_results.append(ball_info)
+        else: # detect()のなかで10回トライしたのに見つけられなかった
+            print("#ボールが見つかりませんでした")
+            reset_sensors(robot)
+            return False
         time.sleep(0.1)
     
     if len(detect_results) < 7:
         print("#ボールが十分な回数見つかりませんでした")
+        reset_sensors(robot)
         return False
 
     xs = [info['center'][0] for info in detect_results]
