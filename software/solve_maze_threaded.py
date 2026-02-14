@@ -75,6 +75,7 @@ FWD_ACC = 1000
 
 THROW_POSITION = [(0,7), (1,7), (2,7), (3,7), (4,7), (5,7), (6,7), (7,7),
                   (8,7), (9,7), (10,7), (11,7), (12,7), (13,7), (14,7), (15,7)] # ボール投擲位置の候補（迷路の北側中央一列）
+#THROW_POSITION = [(2,2)]
 
 def detect_walls(sensor_data: dict) -> tuple[bool, bool, bool]:
     """センサーデータから壁の有無を判定
@@ -157,7 +158,7 @@ def initialize_explorer(maze_size: int, goals: list[tuple[int, int]]) -> AdachiE
 #    explorer.mark_wall(15, 7, Direction.WEST, True)
 
     print("迷路初期化完了")    
-    print(explorer.render_text(show_goal=goals, show_distance=True))
+    print(f"\n{explorer.render_text(show_goal=goals, show_distance=True)}")
         
     return explorer
 
@@ -341,7 +342,7 @@ def catch_ball(robot: Robot, state: State) -> bool:
     
     if state == State.SEARCH_WITH_BALL:
         print("#すでに持っているボールを落とします")
-        robot.arm.set_servo_launcher_angle(Arm.LAUNCHER_RELOAD, 500)
+        robot.arm.set_servo_launcher_angle(Arm.LAUNCHER_RELOAD)
         time.sleep(1)
     
     def return_original_position():
@@ -652,7 +653,7 @@ def run_maze_exploration(robot: Robot, max_steps: int, state: State) -> str:
         if step_count % 10 == 0:
             print("\n=== 現在の迷路マップ ===")
             maze_map = robot.explorer.render_text(show_goal=robot.explorer.goals[0] if robot.explorer.goals else None, show_distance=True)
-            print(maze_map)
+            print(f"\n{maze_map}")
     
     if step_count >= max_steps:
         print(f"\n=== 最大ステップ数 {max_steps} に到達しました ===")
@@ -680,7 +681,7 @@ def show_final_results(robot: Robot) -> None:
     
     print("\n=== 最終迷路マップ ===")
     maze_map = robot.explorer.render_text(show_goal=robot.explorer.goals[0] if robot.explorer.goals else None, show_distance=True)
-    print(maze_map)
+    print(f"\n{maze_map}")
 
 
 def choice_next_goal(explorer: AdachiExplorer) -> list[tuple[int, int]]:
@@ -842,9 +843,11 @@ def main() -> int:
                     print("❌❌❌❌❌❌❌❌❌❌")
                     print(f"予期しない状態遷移です。探索を続行します。state={state}, result={result}")
                     print("Launcher servoをリロード位置に戻します")
-                    robot.arm.set_servo_launcher_angle(Arm.LAUNCHER_RELOAD, 500)
+                    robot.arm.set_servo_launcher_angle(Arm.LAUNCHER_RELOAD)
                     print("❌❌❌❌❌❌❌❌❌❌")
                     next_goals = choice_next_goal(robot.explorer)
+                    
+            reset_sensors(robot)
 
             # 新たなゴールを設定して探索再開
             robot.explorer.set_goals(next_goals)
