@@ -315,7 +315,8 @@ def catch_ball(robot: Robot) -> bool:
         time.sleep(0.5)
         robot.mob_thread.send_command('TURN', -moved_angle)
         robot.mob_thread.wait_response()
-        time.sleep(0.5)
+        reset_sensors(robot)
+        print(f"#位置を元に戻しました: 角度={-moved_angle:.4f} rad, 距離={-moved_distance:.2f} mm")
     
     def detect() -> tuple[bool, dict]:
         for i in range(10):
@@ -421,9 +422,9 @@ def handle_ball(robot: Robot, last_command: tuple, front_wall_check: bool=True) 
             # 前壁チェックなし かつ 前壁がない
             if last_command[0] == 'FWD':
                 # 前進中にボールを検出したら停止して位置を戻す。
-                robot.mob_thread.send_command('STOP', FWD_SPEED, 1000, 30)
+                robot.mob_thread.send_command('STOP', FWD_SPEED, 500, 40)
                 robot.mob_thread.wait_response()
-                robot.mob_thread.send_command('JOGBACK', 30)
+                robot.mob_thread.send_command('JOGBACK', 40)
                 robot.mob_thread.wait_response()
             else:
                 time.sleep(0.5)
