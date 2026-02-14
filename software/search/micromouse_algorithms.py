@@ -362,6 +362,9 @@ class BaseExplorer:
 
         lines: list[str] = []
 
+        cell_width = 2 if show_distance else 1
+        y_label_width = 2
+
         dist_map: list[list[int]] | None = None
         if show_distance:
             dist_map = getattr(self, "dist", None)
@@ -377,12 +380,11 @@ class BaseExplorer:
 
         for y in range(self.size - 1, -1, -1):
             # Row top boundary: + - + - ... +
-            cell_width = 2 if show_distance else 1
             top = ['+']
             for x in range(self.size):
                 top.append(h_wall_at(x, y, north=True, cell_width=cell_width))
                 top.append('+')
-            lines.append(''.join(top))
+            lines.append((' ' * y_label_width) + ''.join(top))
 
             # Cell content line: | c | c | ... |
             mid: list[str] = []
@@ -403,16 +405,35 @@ class BaseExplorer:
                 mid.append(ch)
             # right boundary wall from east wall of last cell
             mid.append(v_wall_at(self.size - 1, y, west=False))
-            lines.append(''.join(mid))
+            lines.append((f"{y:>{y_label_width}}") + ''.join(mid))
 
         # Bottom boundary: use south wall of y=0 cells
         bottom = ['+']
         for x in range(self.size):
             bottom.append(h_wall_at(x, 0, north=False, cell_width=2 if show_distance else 1))
             bottom.append('+')
-        lines.append(''.join(bottom))
+        lines.append((f"{'Y':>{y_label_width}}") + ''.join(bottom))
 
-        return '\n'.join(lines)
+        # X-axis labels
+        x_axis_parts = [(' ' * y_label_width), 'X']
+        for x in range(self.size):
+            x_axis_parts.append(' ' + f"{x:>{cell_width}}")
+        lines.append(''.join(x_axis_parts))
+
+        red = "\x1b[45m" # マゼンタ
+        green = "\x1b[32m"
+        reset = "\x1b[0m"
+
+        def colorize_line(line: str) -> str:
+            colored = []
+            for ch in line:
+                if ch in "+-|":
+                    colored.append(f"{red}{ch}{reset}")
+                else:
+                    colored.append(f"{green}{ch}{reset}")
+            return "".join(colored)
+
+        return "\n".join(colorize_line(line) for line in lines)
 
     def decide_heading(self, left_wall: bool, front_wall: bool, right_wall: bool) -> Direction | None:
         raise NotImplementedError

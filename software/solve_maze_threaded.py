@@ -10,6 +10,8 @@ import argparse
 import random
 import sys
 import time
+from datetime import datetime
+import builtins
 
 from charset_normalizer import detect
 import serial
@@ -30,6 +32,19 @@ from enum import Enum
 import arm.catch_throw as catch_throw
 import math
 import os
+
+
+def _install_timestamped_print() -> None:
+    original_print = builtins.print
+
+    def timestamped_print(*args, **kwargs):
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        original_print(f"[{ts}]", *args, **kwargs)
+
+    builtins.print = timestamped_print
+
+
+_install_timestamped_print()
 
 # 絶対パスを生成してcsvファイルを指定
 # ファイルはこのスクリプトからみて./rpi/camera_py/calibration_data_with_mirror.csvに置いておく必要がある
@@ -132,6 +147,17 @@ def initialize_explorer(maze_size: int, goals: list[tuple[int, int]]) -> AdachiE
     
     print(f"#初期壁情報: 外周の壁と(0,0)の右壁を設定")
     
+    # ロボスイープ特有の壁
+    for x in range(maze_size):
+        explorer.mark_wall(x, 7, Direction.NORTH, True) # 相手チームとの境界線
+
+    explorer.mark_wall(15, 0, Direction.WEST, True)
+    explorer.mark_wall(0, 7, Direction.EAST, True)
+    explorer.mark_wall(15, 7, Direction.WEST, True)
+
+    print("迷路初期化完了")    
+    print(explorer.render_text(show_goal=goals, show_distance=True))
+        
     return explorer
 
 
@@ -246,21 +272,24 @@ def generate_action(robot: Robot, action: str) -> list[tuple]:
         return [
             ('STOP', FWD_SPEED, FWD_ACC, 90),
             ('TURN', 1.5708),  # pi/2
-            ('FWD', FWD_SPEED, FWD_ACC, 90)
+            ('JOGBACK', 20),
+            ('FWD', FWD_SPEED, FWD_ACC, 110)
         ]
     elif action == 'right':
         # 停止 → 右旋回 → 前進
         return [
             ('STOP', FWD_SPEED, FWD_ACC, 90),
             ('TURN', -1.5708),  # -pi/2
-            ('FWD', FWD_SPEED, FWD_ACC, 90)
+            ('JOGBACK', 20),
+            ('FWD', FWD_SPEED, FWD_ACC, 110)
         ]
     elif action == 'back':
         # 停止 → 180度旋回 → 前進
         return [
             ('STOP', FWD_SPEED, FWD_ACC, 90),
             ('TURN', 3.14159),  # pi
-            ('FWD', FWD_SPEED, FWD_ACC, 90)
+            ('JOGBACK', 20),
+            ('FWD', FWD_SPEED, FWD_ACC, 110)
         ]
     else:
         raise ValueError(f"Unknown action: {action}")
@@ -565,6 +594,9 @@ def run_maze_exploration(robot: Robot, max_steps: int, state: State) -> str:
         
         if ball_result == "CATCHED":
             print("\n=== 🟡ボールキャッチ成功 ===")
+            sensor_data, _ = get_sensor_data_with_retry(robot)
+            left_wall, front_wall, right_wall = detect_walls(sensor_data)
+            robot.explorer.update_walls_from_relative(left_wall, front_wall, right_wall) # 壁を更新
             robot.mob_thread.send_command('STOP', FWD_SPEED, FWD_ACC, 90)
             robot.mob_thread.wait_response()
             return 'CATCHTED'                
