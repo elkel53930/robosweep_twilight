@@ -318,7 +318,12 @@ class BaseExplorer:
             raise RuntimeError("attempted to step outside maze")
         self.pose.x, self.pose.y = nx, ny
 
-    def render_text(self, *, show_goal: tuple[int, int] | None = None) -> str:
+    def render_text(
+        self,
+        *,
+        show_goal: tuple[int, int] | None = None,
+        show_distance: bool = False,
+    ) -> str:
         """Render current maze knowledge and pose to an ASCII map.
 
         Style is compatible with the reference reader:
@@ -330,6 +335,8 @@ class BaseExplorer:
           - optional goal marker: 'G'
 
         Unknown (unobserved) edges are drawn as spaces.
+        If show_distance is True, cell contents are shown as 2-digit hex values
+        from the distance map (values > 255 are shown as "IN").
         """
 
         # We draw from top row (y=size-1) down to 0 so that (0,0) is left-bottom.
@@ -340,12 +347,12 @@ class BaseExplorer:
             Direction.WEST: '<',
         }
 
-        def h_wall_at(x: int, y: int, north: bool) -> str:
+        def h_wall_at(x: int, y: int, north: bool, cell_width: int) -> str:
             # north wall of cell (x,y) or south wall of cell (x,y)
             d = Direction.NORTH if north else Direction.SOUTH
             if not self.observed[y][x][int(d)]:
-                return ' '
-            return '-' if self.known_walls[y][x][int(d)] else ' '
+                return ' ' * cell_width
+            return ('-' * cell_width) if self.known_walls[y][x][int(d)] else (' ' * cell_width)
 
         def v_wall_at(x: int, y: int, west: bool) -> str:
             d = Direction.WEST if west else Direction.EAST
@@ -355,11 +362,25 @@ class BaseExplorer:
 
         lines: list[str] = []
 
+        dist_map: list[list[int]] | None = None
+        if show_distance:
+            dist_map = getattr(self, "dist", None)
+            if dist_map is None:
+                raise ValueError("show_distance requires a distance map (missing self.dist)")
+            if len(dist_map) != self.size or any(len(r) != self.size for r in dist_map):
+                raise ValueError("distance map size mismatch")
+
+        def format_dist(value: int) -> str:
+            if value > 0xFF:
+                return "IN"
+            return f"{value:02X}"
+
         for y in range(self.size - 1, -1, -1):
             # Row top boundary: + - + - ... +
+            cell_width = 2 if show_distance else 1
             top = ['+']
             for x in range(self.size):
-                top.append(h_wall_at(x, y, north=True))
+                top.append(h_wall_at(x, y, north=True, cell_width=cell_width))
                 top.append('+')
             lines.append(''.join(top))
 
@@ -369,13 +390,16 @@ class BaseExplorer:
                 # west wall at this cell (or boundary)
                 mid.append(v_wall_at(x, y, west=True) if x > 0 else v_wall_at(x, y, west=True))
 
-                ch = ' '
-                if (x, y) == (0, 0):
-                    ch = 'S'
-                if show_goal is not None and (x, y) == show_goal:
-                    ch = 'G'
-                if (x, y) == (self.pose.x, self.pose.y):
-                    ch = heading_char[self.pose.heading]
+                if show_distance:
+                    ch = format_dist(dist_map[y][x]) if dist_map is not None else "IN"
+                else:
+                    ch = ' '
+                    if (x, y) == (0, 0):
+                        ch = 'S'
+                    if show_goal is not None and (x, y) == show_goal:
+                        ch = 'G'
+                    if (x, y) == (self.pose.x, self.pose.y):
+                        ch = heading_char[self.pose.heading]
                 mid.append(ch)
             # right boundary wall from east wall of last cell
             mid.append(v_wall_at(self.size - 1, y, west=False))
@@ -384,7 +408,7 @@ class BaseExplorer:
         # Bottom boundary: use south wall of y=0 cells
         bottom = ['+']
         for x in range(self.size):
-            bottom.append(h_wall_at(x, 0, north=False))
+            bottom.append(h_wall_at(x, 0, north=False, cell_width=2 if show_distance else 1))
             bottom.append('+')
         lines.append(''.join(bottom))
 
