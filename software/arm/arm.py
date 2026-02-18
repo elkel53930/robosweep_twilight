@@ -31,9 +31,9 @@ class ArmBase(ABC):
     """アームコントローラーの抽象基底クラス"""
     
     # アーム角度定数
-    CATCH_POSITION = 43.0    # ボールキャッチ位置
+    CATCH_POSITION = None    # ボールキャッチ位置
     THROW_POSITION = -45.0   # 投擲位置
-    RUN_POSITION = -90.0     # 走行位置
+    RUN_POSITION = None     # 走行位置
     
     # ランチャーサーボ角度定数
     LAUNCHER_RELOAD = 180    # リロード位置
@@ -135,9 +135,9 @@ class Arm(ArmBase):
     ADDR_GOAL_TIME = 0x20
     
     # アーム角度定数
-    CATCH_POSITION = 42.0    # ボールキャッチ位置
+    CATCH_POSITION = None    # ボールキャッチ位置
     THROW_POSITION = -45.0   # 投擲位置
-    RUN_POSITION = -90.0     # 走行位置
+    RUN_POSITION = None     # 走行位置
     
     # ランチャーサーボ角度定数
     LAUNCHER_RELOAD = 180    # リロード位置
@@ -145,6 +145,7 @@ class Arm(ArmBase):
     LAUNCHER_FIRE = 0        # 発射位置
     
     def __init__(self, 
+                 machine_id: int,
                  futaba_port='/dev/ttyAMA0', 
                  futaba_baudrate=115200,
                  arduino_port='/dev/ttyARM', 
@@ -164,6 +165,12 @@ class Arm(ArmBase):
             arm_min_angle: アームサーボの最小角度 [度] (デフォルト: -90.0)
             arm_max_angle: アームサーボの最大角度 [度] (デフォルト: 45.0)
         """
+        if machine_id == 1:
+            Arm.CATCH_POSITION = 42.0
+            Arm.RUN_POSITION = -90.0
+        elif machine_id == 2:
+            Arm.CATCH_POSITION = 45.0
+            Arm.RUN_POSITION = -85
         # Futabaサーボ設定
         self.arm_servo_id = arm_servo_id
         self.arm_min_angle = arm_min_angle
