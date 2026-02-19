@@ -193,6 +193,290 @@ def read_maze_from_text_file(
     return known_walls, observed, goal, start_pose
 
 
+def write_maze_compact(known_walls: list[list[list[bool]]], 
+                      observed: list[list[list[bool]]], 
+                      goal: tuple[int, int] | None = None,
+                      start_pose: Pose | None = None) -> str:
+    """迷路情報をコンパクトな形式で文字列にエンコードする。
+    
+    フォーマット:
+    - サイズ(2桁) + 各セルの壁情報(4ビットを16進数1文字で表現)
+    - observed情報も同様に圧縮
+    - ゴールとスタート位置をオプションで含む
+    
+    Returns:
+        コンパクトエンコードされた文字列
+    """
+    size = len(known_walls)
+    if size > 99:
+        raise ValueError("maze size must be <= 99 for compact encoding")
+    
+    # ヘッダー: サイズ (2桁でゼロパディング)
+    result = [f"{size:02d}"]
+    
+    # 壁情報をエンコード (4ビット -> 1文字の16進数)
+    for y in range(size):
+        for x in range(size):
+            wall_bits = 0
+            for d in range(4):
+                if known_walls[y][x][d]:
+                    wall_bits |= (1 << d)
+            result.append(f"{wall_bits:x}")
+    
+    # 観測情報をエンコード
+    result.append("|")
+    for y in range(size):
+        for x in range(size):
+            obs_bits = 0
+            for d in range(4):
+                if observed[y][x][d]:
+                    obs_bits |= (1 << d)
+            result.append(f"{obs_bits:x}")
+    
+    # ゴール情報 (2桁でゼロパディング)
+    if goal is not None:
+        result.append(f"|G{goal[0]:02d}{goal[1]:02d}")
+    
+    # スタート情報 (2桁でゼロパディング)
+    if start_pose is not None:
+        result.append(f"|S{start_pose.x:02d}{start_pose.y:02d}{int(start_pose.heading)}")
+    
+    return "".join(result)
+
+
+def read_maze_compact(data: str) -> tuple[
+    list[list[list[bool]]],
+    list[list[list[bool]]],
+    tuple[int, int] | None,
+    Pose,
+]:
+    """コンパクトエンコードされた文字列から迷路情報を読み込む。
+    
+    Args:
+        data: write_maze_compact()でエンコードされた文字列
+    
+    Returns:
+        known_walls, observed, goal, start_pose
+    """
+    parts = data.split("|")
+    if len(parts) < 2:
+        raise ValueError("Invalid compact maze format")
+    
+    # サイズを取得 (2桁)
+    if len(parts[0]) < 2:
+        raise ValueError("Invalid size format in compact maze data")
+    size = int(parts[0][:2])
+    wall_data = parts[0][2:]
+    obs_data = parts[1]
+    
+    # 壁データの長さチェック
+    expected_len = size * size
+    if len(wall_data) != expected_len or len(obs_data) != expected_len:
+        raise ValueError(f"Data length mismatch: expected {expected_len}, got walls={len(wall_data)}, obs={len(obs_data)}")
+    
+    # 配列を初期化
+    known_walls = [[[False] * 4 for _ in range(size)] for _ in range(size)]
+    observed = [[[False] * 4 for _ in range(size)] for _ in range(size)]
+    
+    # 壁データをデコード
+    idx = 0
+    for y in range(size):
+        for x in range(size):
+            wall_bits = int(wall_data[idx], 16)
+            for d in range(4):
+                known_walls[y][x][d] = bool(wall_bits & (1 << d))
+            idx += 1
+    
+    # 観測データをデコード
+    idx = 0
+    for y in range(size):
+        for x in range(size):
+            obs_bits = int(obs_data[idx], 16)
+            for d in range(4):
+                observed[y][x][d] = bool(obs_bits & (1 << d))
+            idx += 1
+    
+    # デフォルト値
+    goal = None
+    start_pose = Pose(0, 0, Direction.NORTH)
+    
+    # オプション情報を解析
+    for part in parts[2:]:
+        if part.startswith("G") and len(part) >= 5:
+            goal = (int(part[1:3]), int(part[3:5]))
+        elif part.startswith("S") and len(part) >= 6:
+            start_pose = Pose(int(part[1:3]), int(part[3:5]), Direction(int(part[5])))
+    
+    return known_walls, observed, goal, start_pose
+
+
+def write_maze_ultracompact(known_walls: list[list[list[bool]]], 
+                           observed: list[list[list[bool]]], 
+                           goal: tuple[int, int] | None = None,
+                           start_pose: Pose | None = None) -> str:
+    """迷路情報を最大限に圧縮したbase64形式にエンコードする。
+    
+    フォーマット: バイナリデータをbase64でエンコード
+    - ヘッダー: size(1バイト) + flags(1バイト)
+    - ビットパッキングで壁・観測データを格納
+    """
+    import base64
+    
+    size = len(known_walls)
+    if size > 255:
+        raise ValueError("maze size must be <= 255 for ultra-compact encoding")
+    
+    # フラグバイト: bit0=has_goal, bit1=has_start
+    flags = 0
+    if goal is not None:
+        flags |= 0x01
+    if start_pose is not None and (start_pose.x != 0 or start_pose.y != 0 or start_pose.heading != Direction.NORTH):
+        flags |= 0x02
+    
+    # バイトデータを構築
+    data = bytearray()
+    data.append(size)
+    data.append(flags)
+    
+    # 壁情報をビットパック (4ビット/セル)
+    bit_offset = 0
+    current_byte = 0
+    
+    for y in range(size):
+        for x in range(size):
+            wall_bits = 0
+            for d in range(4):
+                if known_walls[y][x][d]:
+                    wall_bits |= (1 << d)
+            
+            current_byte |= (wall_bits << bit_offset)
+            bit_offset += 4
+            
+            if bit_offset >= 8:
+                data.append(current_byte & 0xFF)
+                current_byte = current_byte >> 8
+                bit_offset -= 8
+    
+    if bit_offset > 0:
+        data.append(current_byte & 0xFF)
+    
+    # 観測情報をビットパック
+    bit_offset = 0
+    current_byte = 0
+    
+    for y in range(size):
+        for x in range(size):
+            obs_bits = 0
+            for d in range(4):
+                if observed[y][x][d]:
+                    obs_bits |= (1 << d)
+            
+            current_byte |= (obs_bits << bit_offset)
+            bit_offset += 4
+            
+            if bit_offset >= 8:
+                data.append(current_byte & 0xFF)
+                current_byte = current_byte >> 8
+                bit_offset -= 8
+    
+    if bit_offset > 0:
+        data.append(current_byte & 0xFF)
+    
+    # オプションデータ
+    if goal is not None:
+        data.append(goal[0])
+        data.append(goal[1])
+    
+    if start_pose is not None and (start_pose.x != 0 or start_pose.y != 0 or start_pose.heading != Direction.NORTH):
+        data.append(start_pose.x)
+        data.append(start_pose.y)
+        data.append(int(start_pose.heading))
+    
+    # Base64エンコード
+    return base64.b64encode(data).decode('ascii')
+
+
+def read_maze_ultracompact(data: str) -> tuple[
+    list[list[list[bool]]],
+    list[list[list[bool]]],
+    tuple[int, int] | None,
+    Pose,
+]:
+    """最大限に圧縮されたbase64形式から迷路情報をデコードする。"""
+    import base64
+    
+    try:
+        raw_data = base64.b64decode(data.encode('ascii'))
+    except Exception as e:
+        raise ValueError(f"Invalid base64 data: {e}")
+    
+    if len(raw_data) < 2:
+        raise ValueError("Insufficient data")
+    
+    size = raw_data[0]
+    flags = raw_data[1]
+    
+    # 配列を初期化
+    known_walls = [[[False] * 4 for _ in range(size)] for _ in range(size)]
+    observed = [[[False] * 4 for _ in range(size)] for _ in range(size)]
+    
+    # 壁情報をデコード
+    data_idx = 2
+    bit_offset = 0
+    current_byte = 0
+    
+    for y in range(size):
+        for x in range(size):
+            if bit_offset == 0 and data_idx < len(raw_data):
+                current_byte = raw_data[data_idx]
+                data_idx += 1
+                bit_offset = 0
+            
+            wall_bits = (current_byte >> bit_offset) & 0x0F
+            for d in range(4):
+                known_walls[y][x][d] = bool(wall_bits & (1 << d))
+            
+            bit_offset += 4
+            if bit_offset >= 8:
+                bit_offset -= 8
+                current_byte = current_byte >> 8
+    
+    # 観測情報をデコード
+    bit_offset = 0
+    current_byte = 0
+    
+    for y in range(size):
+        for x in range(size):
+            if bit_offset == 0 and data_idx < len(raw_data):
+                current_byte = raw_data[data_idx]
+                data_idx += 1
+                bit_offset = 0
+            
+            obs_bits = (current_byte >> bit_offset) & 0x0F
+            for d in range(4):
+                observed[y][x][d] = bool(obs_bits & (1 << d))
+            
+            bit_offset += 4
+            if bit_offset >= 8:
+                bit_offset -= 8
+                current_byte = current_byte >> 8
+    
+    # デフォルト値
+    goal = None
+    start_pose = Pose(0, 0, Direction.NORTH)
+    
+    # オプションデータを読み込み
+    if flags & 0x01 and data_idx + 1 < len(raw_data):  # has_goal
+        goal = (raw_data[data_idx], raw_data[data_idx + 1])
+        data_idx += 2
+    
+    if flags & 0x02 and data_idx + 2 < len(raw_data):  # has_start
+        start_pose = Pose(raw_data[data_idx], raw_data[data_idx + 1], Direction(raw_data[data_idx + 2]))
+        data_idx += 3
+    
+    return known_walls, observed, goal, start_pose
+
+
 class BaseExplorer:
     """Base class providing pose handling and wall bookkeeping.
 
@@ -434,6 +718,60 @@ class BaseExplorer:
             return "".join(colored)
 
         return "\n".join(colorize_line(line) for line in lines)
+
+    def export_compact(self) -> str:
+        """現在の迷路状態をコンパクト形式で文字列にエクスポートする。"""
+        return write_maze_compact(
+            self.known_walls,
+            self.observed,
+            goal=None,  # ゴール情報は基底クラスでは管理していない
+            start_pose=self.pose
+        )
+    
+    def import_compact(self, data: str, *, load_pose: bool = True) -> tuple[int, int] | None:
+        """コンパクト形式の文字列から迷路状態をインポートする。
+        
+        Args:
+            data: コンパクトエンコードされた迷路データ
+            load_pose: Trueならスタート位置も復元する
+            
+        Returns:
+            ゴール位置（存在する場合）
+        """
+        known_walls, observed, goal, start_pose = read_maze_compact(data)
+        
+        # サイズチェック
+        if len(known_walls) != self.size:
+            raise ValueError(f"Size mismatch: expected {self.size}, got {len(known_walls)}")
+        
+        self.load_maze(known_walls, observed, pose=start_pose if load_pose else None)
+        return goal
+    
+    def render_compact(self) -> str:
+        """現在の迷路状態をコンパクト形式でレンダリングする。
+        
+        render_text()の軽量版。データサイズ重視。
+        """
+        return self.export_compact()
+    
+    def export_ultracompact(self) -> str:
+        """現在の迷路状態をウルトラコンパクト形式でエクスポートする。"""
+        return write_maze_ultracompact(
+            self.known_walls,
+            self.observed,
+            goal=None,
+            start_pose=self.pose
+        )
+    
+    def import_ultracompact(self, data: str, *, load_pose: bool = True) -> tuple[int, int] | None:
+        """ウルトラコンパクト形式から迷路状態をインポートする。"""
+        known_walls, observed, goal, start_pose = read_maze_ultracompact(data)
+        
+        if len(known_walls) != self.size:
+            raise ValueError(f"Size mismatch: expected {self.size}, got {len(known_walls)}")
+        
+        self.load_maze(known_walls, observed, pose=start_pose if load_pose else None)
+        return goal
 
     def decide_heading(self, left_wall: bool, front_wall: bool, right_wall: bool) -> Direction | None:
         raise NotImplementedError

@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import Iterable, Tuple
 
-from micromouse_algorithms import AdachiExplorer, Direction, Pose, read_maze_from_text_file
+from micromouse_algorithms import AdachiExplorer, Direction, Pose, read_maze_from_text_file, write_maze_compact, read_maze_compact, write_maze_ultracompact, read_maze_ultracompact
 
 
 logger = logging.getLogger("test_step_solver")
@@ -106,6 +106,78 @@ def _extract_expected_found(msg: str) -> tuple[str | None, str | None]:
         return exp, found
     except Exception:
         return None, None
+
+
+def _test_compact_format(maze_path: Path) -> int:
+    """コンパクト形式のエンコード/デコードテスト。"""
+    logger.info("Testing compact format for: %s", maze_path)
+    
+    try:
+        # 元のデータを読み込み
+        known_walls, observed, goal, start_pose = read_maze_from_text_file(str(maze_path))
+        
+        # コンパクト形式にエンコード
+        compact_data = write_maze_compact(known_walls, observed, goal, start_pose)
+        logger.info("Compact encoded (%d bytes): %s", len(compact_data), compact_data[:100] + ("..." if len(compact_data) > 100 else ""))
+        
+        # デコードして復元
+        decoded_walls, decoded_obs, decoded_goal, decoded_pose = read_maze_compact(compact_data)
+        
+        # 検証
+        size = len(known_walls)
+        for y in range(size):
+            for x in range(size):
+                for d in range(4):
+                    if known_walls[y][x][d] != decoded_walls[y][x][d]:
+                        logger.error("Wall mismatch at (%d,%d) dir %d", x, y, d)
+                        return 1
+                    if observed[y][x][d] != decoded_obs[y][x][d]:
+                        logger.error("Observed mismatch at (%d,%d) dir %d", x, y, d)
+                        return 1
+        
+        if goal != decoded_goal:
+            logger.error("Goal mismatch: %s != %s", goal, decoded_goal)
+            return 1
+        
+        if (start_pose.x, start_pose.y, start_pose.heading) != (decoded_pose.x, decoded_pose.y, decoded_pose.heading):
+            logger.error("Start pose mismatch: %s != %s", start_pose, decoded_pose)
+            return 1
+        
+        logger.info("Compact format test passed for: %s", maze_path)
+        
+        # ウルトラコンパクトフォーマットもテスト
+        ultracompact_data = write_maze_ultracompact(known_walls, observed, goal, start_pose)
+        logger.info("Ultra-compact encoded (%d bytes): %s", len(ultracompact_data), ultracompact_data[:100] + ("..." if len(ultracompact_data) > 100 else ""))
+        
+        decoded_walls2, decoded_obs2, decoded_goal2, decoded_pose2 = read_maze_ultracompact(ultracompact_data)
+        
+        # ウルトラコンパクトの検証
+        for y in range(size):
+            for x in range(size):
+                for d in range(4):
+                    if known_walls[y][x][d] != decoded_walls2[y][x][d]:
+                        logger.error("Ultra-compact wall mismatch at (%d,%d) dir %d", x, y, d)
+                        return 1
+                    if observed[y][x][d] != decoded_obs2[y][x][d]:
+                        logger.error("Ultra-compact observed mismatch at (%d,%d) dir %d", x, y, d)
+                        return 1
+        
+        logger.info("Ultra-compact format test also passed")
+        
+        # データサイズ比較
+        original_size = maze_path.stat().st_size
+        compact_size = len(compact_data.encode('utf-8'))
+        ultracompact_size = len(ultracompact_data.encode('utf-8'))
+        compression_ratio = compact_size / original_size * 100 if original_size > 0 else 0
+        ultra_compression_ratio = ultracompact_size / original_size * 100 if original_size > 0 else 0
+        logger.info("Size comparison: original=%d bytes, compact=%d bytes (%.1f%%), ultra-compact=%d bytes (%.1f%%)", 
+                   original_size, compact_size, compression_ratio, ultracompact_size, ultra_compression_ratio)
+        
+        return 0
+        
+    except Exception as e:
+        logger.error("Compact format test failed for %s: %s", maze_path, e, exc_info=True)
+        return 1
 
 
 def _run_one(maze_path: Path, *, max_steps: int, auto: bool, debug_parse: bool) -> int:
@@ -279,6 +351,11 @@ def main() -> int:
         action="store_true",
         help="On maze parse errors, print additional context/excerpts to logs",
     )
+    ap.add_argument(
+        "--compact-test",
+        action="store_true",
+        help="Test compact maze format encoding/decoding instead of running solver",
+    )
     args = ap.parse_args()
 
     _configure_logging(args.verbose)
@@ -288,12 +365,15 @@ def main() -> int:
 
     for maze_path in _iter_maze_paths(args.maze):
         try:
-            rc = _run_one(
-                maze_path,
-                max_steps=args.max_steps,
-                auto=args.auto,
-                debug_parse=args.debug_parse,
-            )
+            if args.compact_test:
+                rc = _test_compact_format(maze_path)
+            else:
+                rc = _run_one(
+                    maze_path,
+                    max_steps=args.max_steps,
+                    auto=args.auto,
+                    debug_parse=args.debug_parse,
+                )
         except Exception:
             logger.exception("Error while running maze: %s", maze_path)
             rc = 1
