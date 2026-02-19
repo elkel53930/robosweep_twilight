@@ -34,8 +34,10 @@ import math
 import os
 from rpi.comm import RobotServer, RobotClient
 
-global machine_id
+global machine_id # 1 or 2
 machine_id = None
+global machine_index # 0 or 1
+machine_index = None
 
 def _install_timestamped_print() -> None:
     original_print = builtins.print
@@ -73,12 +75,22 @@ LS_THRESHOLD = 100  # 左前壁検出
 RS_THRESHOLD = 100  # 右前壁検出
 LF_RF_THRESHOLD = 50  # 左側・右側壁検出（両方がこの値以上で前壁あり）
 
-FWD_SPEED = 300
+FWD_SPEED = 350
 FWD_ACC = 1000
 
-#THROW_POSITION = [(0,7), (1,7), (2,7), (3,7), (4,7), (5,7), (6,7), (7,7),
-#                  (8,7), (9,7), (10,7), (11,7), (12,7), (13,7), (14,7), (15,7)] # ボール投擲位置の候補（迷路の北側中央一列）
-THROW_POSITION = [(2,2)]
+#THROW_POSITION_UNIT1 = [(0,7), (1,7), (2,7), (3,7), (4,7), (5,7), (6,7), (7,7)]
+#THROW_POSITION_UNIT2 = [(8,7), (9,7), (10,7), (11,7), (12,7), (13,7), (14,7), (15,7)] # ボール投擲位置の候補（迷路の北側中央一列）
+#START_POSITION_UNIT1 = (0,0)
+#START_POSITION_UNIT2 = (15,0)
+#START_DIRECTION_UNIT1 = Direction.NORTH
+#START_DIRECTION_UNIT2 = Direction.NORTH
+
+THROW_POSITION = [[(0,3), (1,3), (2,3),
+                   (0,2), (1,2), (2,2)],
+                  [(3,3), (4,3), (5,3),
+                   (3,2), (4,2), (5,2)]] # ボール投擲位置の候補（迷路の北側中央一列）
+START_POSITION = [(0,0), (5,0)]
+START_DIRECTION = [Direction.NORTH, Direction.NORTH]
 
 def detect_walls(sensor_data: dict) -> tuple[bool, bool, bool]:
     """センサーデータから壁の有無を判定
@@ -742,6 +754,13 @@ def main() -> int:
     global machine_id
     machine_id = args.machine_id
     
+    if machine_id not in [1, 2]:
+        print("Error: --machine-id は 1 または 2 を指定してください")
+        return 1
+    
+    global machine_index
+    machine_index = machine_id - 1
+    
     show_title()
     
     # シリアルポート接続
@@ -766,6 +785,7 @@ def main() -> int:
         
         # 探索アルゴリズムを初期化
         explorer = initialize_explorer(args.maze_size, goals)
+        explorer.set_pose(START_POSITION[machine_index][0], START_POSITION[machine_index][1], START_DIRECTION[machine_index]) # スタート位置と初期向きを設定
         
         # ボール検出スレッド初期化
         ball_thread = initialize_ball_detector()
@@ -818,8 +838,8 @@ def main() -> int:
             if state == State.SEARCH:
                 if result == 'CATCHTED':
                     print(f"\n=== ボール投擲位置へ移動 ===")
-                    print(f"ボール投擲位置: {THROW_POSITION}")
-                    next_goals = THROW_POSITION
+                    print(f"ボール投擲位置: {THROW_POSITION[machine_index]}")
+                    next_goals = THROW_POSITION[machine_index]
                     state = State.SEARCH_WITH_BALL
                 else:
                     # GOAL_REACHED, NO_PATH, SENSOR_ERROR, MAX_STEPSのいずれの場合も、次は訪れていないマスを優先して探索する
