@@ -91,6 +91,10 @@ THROW_POSITION = [[(0,3), (1,3), (2,3),
                    (3,2), (4,2), (5,2)]] # ボール投擲位置の候補（迷路の北側中央一列）
 START_POSITION = [(0,0), (5,0)]
 START_DIRECTION = [Direction.NORTH, Direction.NORTH]
+AREA_INCHARGE = [
+    [(x, y) for y in range(0, 4) for x in range(0, 3)], # (0, 0)から(2, 3)までのエリアを担当
+    [(x, y) for y in range(0, 4) for x in range(3, 6)]  # (3, 0)から(5, 3)までのエリアを担当
+]
 
 def detect_walls(sensor_data: dict) -> tuple[bool, bool, bool]:
     """センサーデータから壁の有無を判定
@@ -238,9 +242,11 @@ def initialize_arm(arduino_port: str = '/dev/ttyARM') -> Arm:
     
     arm.set_motor_speed(10)
     arm.set_servo_arm_torque(True)
-    arm.set_servo_arm_angle(Arm.RUN_POSITION, 500)
+    arm.set_servo_arm_angle(Arm.THROW_POSITION, 800)
     time.sleep(0.5)
     arm.set_motor_speed(0)
+    time.sleep(0.5)
+    arm.set_servo_arm_angle(Arm.RUN_POSITION, 1000)
     
     return arm
 
@@ -700,6 +706,17 @@ def show_final_results(robot: Robot) -> None:
     maze_map = robot.explorer.render_text(show_goal=robot.explorer.goals[0] if robot.explorer.goals else None, show_distance=True)
     print(f"\n{maze_map}")
 
+def goal_condition(dist_map: List[List[int]], x: int, y: int) -> bool:
+    """ゴール条件を判定するダミー関数"""
+    # 現在位置から5マス以内はゴール候補から除外（壁の有無を考慮した最短距離）
+    distance = dist_map[y][x]
+    if distance >= INF: # 到達不可能なマスはゴール候補から除外
+        return False
+    if distance <= 4: # 現在位置からnマス以内はゴール候補から除外
+        return False
+    if (x, y) not in AREA_INCHARGE[machine_index]: # 自分の担当エリア外のマスはゴール候補から除外
+        return False
+    return True
 
 def choice_next_goal(explorer: AdachiExplorer) -> list[tuple[int, int]]:
     max_steps_since_visit = -1
@@ -708,9 +725,9 @@ def choice_next_goal(explorer: AdachiExplorer) -> list[tuple[int, int]]:
     current_pos_x, current_pos_y = explorer.get_current_position()
     dist_map = explorer.get_distance_map(current_pos_x, current_pos_y)
     for y in range(explorer.size):
-        for x in range(explorer.size):
-            # 到達不可能なマス（距離が無限大）は除外
-            if dist_map[y][x] >= INF:
+        for x in range(explorer.size):     
+            # ゴールとしての条件を満たしていないマスは除外
+            if not goal_condition(dist_map, x, y):
                 continue
             
             steps = explorer.get_steps_since_visit(x, y)

@@ -701,7 +701,7 @@ class BaseExplorer:
         # X-axis labels
         x_axis_parts = [(' ' * y_label_width), 'X']
         for x in range(self.size):
-            x_axis_parts.append(' ' + f"{x:>{cell_width}}")
+            x_axis_parts.append(f"{x:>{cell_width}}" + ' ')
         lines.append(''.join(x_axis_parts))
 
         red = "\x1b[45m" # マゼンタ
