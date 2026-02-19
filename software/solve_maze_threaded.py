@@ -32,6 +32,7 @@ from enum import Enum
 import arm.catch_throw as catch_throw
 import math
 import os
+from rpi.comm import RobotServer, RobotClient
 
 global machine_id
 machine_id = None
