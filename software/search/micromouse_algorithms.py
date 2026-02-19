@@ -504,6 +504,11 @@ class BaseExplorer:
             [[False] * 4 for _ in range(self.size)] for _ in range(self.size)
         ]
 
+        # virtual_walls[y][x][dir] = True if virtual wall exists
+        self.virtual_walls: List[List[List[bool]]] = [
+            [[False] * 4 for _ in range(self.size)] for _ in range(self.size)
+        ]
+
     def load_maze(
         self,
         known_walls: list[list[list[bool]]],
@@ -527,6 +532,7 @@ class BaseExplorer:
 
         self.known_walls = [[[False] * 4 for _ in range(self.size)] for _ in range(self.size)]
         self.observed = [[[False] * 4 for _ in range(self.size)] for _ in range(self.size)]
+        self.virtual_walls = [[[False] * 4 for _ in range(self.size)] for _ in range(self.size)]
 
         for y in range(self.size):
             for x in range(self.size):
@@ -572,6 +578,24 @@ class BaseExplorer:
             self.known_walls[ny][nx][int(od)] = exists
             self.observed[ny][nx][int(od)] = True
 
+    def set_virtual_wall(self, x: int, y: int, d: Direction | int, exists: bool = True) -> None:
+        """仮想壁を設定する。"""
+        if isinstance(d, int):
+            d = Direction(d)
+        if not _in_bounds(x, y, self.size):
+            raise ValueError(f"position out of bounds: {(x, y)}")
+
+        self.virtual_walls[y][x][int(d)] = exists
+        dx, dy = DIR_VECTORS[d]
+        nx, ny = x + dx, y + dy
+        if _in_bounds(nx, ny, self.size):
+            od = d.back()
+            self.virtual_walls[ny][nx][int(od)] = exists
+
+    def clear_virtual_walls(self) -> None:
+        """すべての仮想壁をクリアする。"""
+        self.virtual_walls = [[[False] * 4 for _ in range(self.size)] for _ in range(self.size)]
+
     def update_walls_from_relative(self, left: bool|None, front: bool|None, right: bool|None) -> None:
         x, y, h = self.pose.x, self.pose.y, self.pose.heading
         if left is not None:
@@ -586,6 +610,9 @@ class BaseExplorer:
         dx, dy = DIR_VECTORS[d]
         nx, ny = x + dx, y + dy
         if not _in_bounds(nx, ny, self.size):
+            return False
+
+        if self.virtual_walls[y][x][int(d)]:
             return False
 
         # If we *observed* a wall and it exists => blocked.
@@ -607,6 +634,7 @@ class BaseExplorer:
         *,
         show_goal: tuple[int, int] | None = None,
         show_distance: bool = False,
+        show_virtual_walls: bool = True,
     ) -> str:
         """Render current maze knowledge and pose to an ASCII map.
 
@@ -619,6 +647,7 @@ class BaseExplorer:
           - optional goal marker: 'G'
 
         Unknown (unobserved) edges are drawn as spaces.
+        If show_virtual_walls is True, virtual walls are drawn in cyan background.
         If show_distance is True, cell contents are shown as 2-digit hex values
         from the distance map (values > 255 are shown as "IN").
         """
@@ -634,15 +663,27 @@ class BaseExplorer:
         def h_wall_at(x: int, y: int, north: bool, cell_width: int) -> str:
             # north wall of cell (x,y) or south wall of cell (x,y)
             d = Direction.NORTH if north else Direction.SOUTH
+            if self.observed[y][x][int(d)] and self.known_walls[y][x][int(d)]:
+                if show_virtual_walls and self.virtual_walls[y][x][int(d)]:
+                    return '~' * cell_width
+                return '-' * cell_width
+            if show_virtual_walls and self.virtual_walls[y][x][int(d)]:
+                return '=' * cell_width
             if not self.observed[y][x][int(d)]:
                 return ' ' * cell_width
-            return ('-' * cell_width) if self.known_walls[y][x][int(d)] else (' ' * cell_width)
+            return ' ' * cell_width
 
         def v_wall_at(x: int, y: int, west: bool) -> str:
             d = Direction.WEST if west else Direction.EAST
+            if self.observed[y][x][int(d)] and self.known_walls[y][x][int(d)]:
+                if show_virtual_walls and self.virtual_walls[y][x][int(d)]:
+                    return ':'
+                return '|'
+            if show_virtual_walls and self.virtual_walls[y][x][int(d)]:
+                return '!'
             if not self.observed[y][x][int(d)]:
                 return ' '
-            return '|' if self.known_walls[y][x][int(d)] else ' '
+            return ' '
 
         lines: list[str] = []
 
@@ -705,6 +746,8 @@ class BaseExplorer:
         lines.append(''.join(x_axis_parts))
 
         red = "\x1b[45m" # マゼンタ
+        cyan = "\x1b[46m" # 水色
+        cyan_text = "\x1b[36m" # 水色(文字)
         green = "\x1b[32m"
         reset = "\x1b[0m"
 
@@ -713,6 +756,12 @@ class BaseExplorer:
             for ch in line:
                 if ch in "+-|":
                     colored.append(f"{red}{ch}{reset}")
+                elif ch in "=!":
+                    wall_char = '-' if ch == '=' else '|'
+                    colored.append(f"{cyan}{wall_char}{reset}")
+                elif ch in "~:":
+                    wall_char = '-' if ch == '~' else '|'
+                    colored.append(f"{red}{cyan_text}{wall_char}{reset}")
                 else:
                     colored.append(f"{green}{ch}{reset}")
             return "".join(colored)
