@@ -98,7 +98,7 @@ AREA_INCHARGE = [
 ]
 
 # デッドロック防止のため、１号機は２号機の隣まで迫って良いが２号機は１号機から距離取らなくてはならない。
-MINIMUM_DISTANCE_FROM_OTHER_AGENT = [0, 2] # 他エージェントから最低限確保したい距離（マス数）
+MINIMUM_DISTANCE_FROM_OTHER_AGENT = [1, 2] # 他エージェントから最低限確保したい距離（マス数）
 
 def detect_walls(sensor_data: dict) -> tuple[bool, bool, bool]:
     """センサーデータから壁の有無を判定
