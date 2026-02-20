@@ -258,14 +258,6 @@ def initialize_arm(arduino_port: str = '/dev/ttyARM') -> Arm:
     if not arm.connect_arduino():
         raise RuntimeError("Arduinoへの接続に失敗しました")
     
-    arm.set_motor_speed(10)
-    arm.set_servo_arm_torque(True)
-    arm.set_servo_arm_angle(Arm.THROW_POSITION, 500)
-    time.sleep(0.5)
-    arm.set_motor_speed(0)
-    time.sleep(0.5)
-    arm.set_servo_arm_angle(Arm.RUN_POSITION, 1000)
-    
     return arm
 
 
@@ -491,8 +483,19 @@ def catch_ball(robot: Robot, state: State) -> bool:
     
     print(f"#Moved angle total: {moved_angle:.4f} rad, distance total: {moved_distance:.2f} mm")
     # 位置調整完了
+    sensor_data, _ = get_sensor_data_with_retry(robot) # 現在の角度を取得
+    original_angle = sensor_data['odo_ang']
  
     catch_result = catch_throw.catch(robot.arm, timeout=3)   
+    
+    sensor_data, _ = get_sensor_data_with_retry(robot) # 現在の角度を取得
+    after_angle = sensor_data['odo_ang']
+    
+    # 角度を戻す
+    angle_to_return = original_angle - after_angle
+    robot.mob_thread.send_command('TURN', angle_to_return)
+    robot.mob_thread.wait_response()
+    
     if not catch_result:
         print("#❌ボールキャッチ失敗")
         return_original_position()
@@ -968,7 +971,15 @@ def main() -> int:
         robot.explorer.step_forward() 
         agent_info = {} # 他エージェントの位置情報を格納する辞書
 
-        robot.mob_thread.send_command('WALL', True)        
+        # 壁センサオン
+        robot.mob_thread.send_command('WALL', True)
+
+        # スタートゲート検出待ちをアームで知らせる        
+        robot.arm.set_motor_speed(10)
+        robot.arm.set_servo_arm_torque(True)
+        robot.arm.set_servo_arm_angle(Arm.THROW_POSITION, 500)
+        time.sleep(0.5)
+        robot.arm.set_motor_speed(0)
         # スタートゲートを検出する
         cnt = 0
         while True:
@@ -985,7 +996,9 @@ def main() -> int:
                 break
         
         print("#スタートゲートが開くまで待機中")
-
+        # スタートゲートオープン待ちをアームで知らせる
+        robot.arm.set_servo_arm_angle(Arm.RUN_POSITION, 1000)
+        
         cnt = 0
         while True:
             time.sleep(0.2)
