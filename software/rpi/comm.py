@@ -29,7 +29,7 @@ def get_local_ip():
 class RobotServer:
     def __init__(self):
         self.sock = None
-        self.conn = None
+        self.conns = {}
         self.recv_queue = queue.Queue()
         self.running = True
 
@@ -49,41 +49,57 @@ class RobotServer:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.bind(("", PORT))
-        self.sock.listen(1)
+        self.sock.listen(2)
 
         threading.Thread(target=self._accept_loop, daemon=True).start()
 
     def _accept_loop(self):
         while self.running:
             conn, addr = self.sock.accept()
-            self.conn = conn
-            threading.Thread(target=self._recv_loop, daemon=True).start()
+            threading.Thread(target=self._recv_loop, args=(conn,), daemon=True).start()
 
-    def _recv_loop(self):
+    def _recv_loop(self, conn):
         buffer = b""
-        while self.running and self.conn:
+        client_id = None
+        while self.running and conn:
             try:
-                data = self.conn.recv(1024)
+                data = conn.recv(1024)
                 if not data:
-                    self.conn = None
                     break
                 buffer += data
                 while b"\n" in buffer:
                     msg, buffer = buffer.split(b"\n", 1)
-                    self.recv_queue.put(msg.decode())
+                    text = msg.decode()
+                    if client_id is None:
+                        if text.startswith("HELLO "):
+                            try:
+                                cid = int(text.split(" ", 1)[1])
+                                if cid in (1, 2):
+                                    client_id = cid
+                                    self.conns[client_id] = conn
+                                    continue
+                            except:
+                                pass
+                        # invalid hello; drop connection
+                        conn.close()
+                        return
+                    self.recv_queue.put((client_id, text))
             except:
-                self.conn = None
                 break
+        if client_id in self.conns and self.conns.get(client_id) is conn:
+            del self.conns[client_id]
+        try:
+            conn.close()
+        except:
+            pass
 
-    def send(self, msg: str):
-        if self.conn:
-            self.conn.sendall((msg + "\n").encode())
+    def send(self, client_id: int, msg: str):
+        conn = self.conns.get(client_id)
+        if conn:
+            conn.sendall((msg + "\n").encode())
 
     def recv(self, timeout=None):
-        try:
-            return self.recv_queue.get(timeout=timeout)
-        except queue.Empty:
-            return None
+        return self.recv_queue.get(timeout=timeout)
 
 
 # ===============================
@@ -91,11 +107,14 @@ class RobotServer:
 # ===============================
 
 class RobotClient:
-    def __init__(self):
+    def __init__(self, client_id: int):
+        if client_id not in (1, 2):
+            raise ValueError("client_id must be 1 or 2")
         self.sock = None
         self.server_ip = None
         self.recv_queue = queue.Queue()
         self.running = True
+        self.client_id = client_id
 
     def start(self):
         threading.Thread(target=self._connect_loop, daemon=True).start()
@@ -132,6 +151,7 @@ class RobotClient:
 
                 self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.sock.connect((self.server_ip, PORT))
+                self.sock.sendall((f"HELLO {self.client_id}\n").encode())
 
                 threading.Thread(target=self._recv_loop, daemon=True).start()
                 return
@@ -163,7 +183,4 @@ class RobotClient:
             self.sock.sendall((msg + "\n").encode())
 
     def recv(self, timeout=None):
-        try:
-            return self.recv_queue.get(timeout=timeout)
-        except queue.Empty:
-            return None
+        return self.recv_queue.get(timeout=timeout)

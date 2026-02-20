@@ -25,6 +25,7 @@ from mob.esp32_reset import esp32_reset
 from search.micromouse_algorithms import AdachiExplorer, Direction, INF
 from rpi.camera_py.ball_detect_threaded import BallDetectThread
 from rpi.camera_py.interpolate_position import PositionInterpolator
+from rpi.comm import RobotClient
 from arm.arm import Arm, ArmDummy, ArmBase
 from dataclasses import dataclass
 from math import fabs
@@ -32,9 +33,8 @@ from enum import Enum
 import arm.catch_throw as catch_throw
 import math
 import os
-from rpi.comm import RobotServer, RobotClient
 
-global machine_id # 1 or 2
+global machine_id
 machine_id = None
 global machine_index # 0 or 1
 machine_index = None
@@ -68,6 +68,7 @@ class Robot:
     ball_thread: BallDetectThread
     arm: ArmBase
     explorer: AdachiExplorer
+    comm_client: RobotClient
 
 
 # センサーしきい値
@@ -222,6 +223,20 @@ def initialize_ball_detector() -> BallDetectThread:
     return ball_thread
 
 
+def initialize_comm_client() -> RobotClient:
+    """通信クライアントを初期化・開始
+    
+    Returns:
+        初期化されたRobotClient
+    """
+    global machine_id
+    comm_client = RobotClient(client_id=machine_id)
+    comm_client.start()
+    print("通信クライアント開始")
+    
+    return comm_client
+
+
 def initialize_arm_dummy() -> ArmDummy:
     """ダミーアームを初期化"""
     arm = ArmDummy()
@@ -242,7 +257,7 @@ def initialize_arm(arduino_port: str = '/dev/ttyARM') -> Arm:
     
     arm.set_motor_speed(10)
     arm.set_servo_arm_torque(True)
-    arm.set_servo_arm_angle(Arm.THROW_POSITION, 800)
+    arm.set_servo_arm_angle(Arm.RUN_POSITION, 500)
     time.sleep(0.5)
     arm.set_motor_speed(0)
     time.sleep(0.5)
@@ -591,6 +606,8 @@ def run_maze_exploration(robot: Robot, max_steps: int, state: State) -> str:
         step_count += 1
         print(f"\n--- Step {step_count} ---")
         
+        # ここで現在の位置や迷路情報を送信
+        robot.comm_client.send(f"POS {robot.explorer.pose.x} {robot.explorer.pose.y} {robot.explorer.pose.heading.name} MAZE {robot.explorer.export_ultracompact()}")
         # センサーデータ取得
         sensor_data, success = get_sensor_data_with_retry(robot)
         
@@ -807,6 +824,9 @@ def main() -> int:
         # ボール検出スレッド初期化
         ball_thread = initialize_ball_detector()
         
+        # 通信クライアント初期化
+        comm_client = initialize_comm_client()
+        
         # アーム初期化
         if args.use_dummy_arm:
             arm = initialize_arm_dummy()
@@ -817,7 +837,7 @@ def main() -> int:
         mob_thread = initialize_mobile_base(ser, timeout=args.timeout)
         
         # Robotインスタンスを作成
-        robot = Robot(mob_thread=mob_thread, ball_thread=ball_thread, arm=arm, explorer=explorer)        
+        robot = Robot(mob_thread=mob_thread, ball_thread=ball_thread, arm=arm, explorer=explorer, comm_client=comm_client)        
 
         # 一番最初の前進はアルゴリズムによらずに実行されるため、
         # その分をアルゴリズムに通知しておく

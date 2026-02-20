@@ -873,6 +873,51 @@ class AdachiExplorer(BaseExplorer):
         self.goals = list(goals)
         self._recompute_distance_map()
 
+    def merge_ultracompact(self, data: str) -> tuple[int, int] | None:
+        """現在の迷路データとultra-compactデータをマージする。
+
+        observedのマージ規則:
+          - current=False, incoming=True -> merged=True (incomingの壁情報)
+          - current=True, incoming=False -> merged=True (currentの壁情報)
+          - current=True, incoming=True -> merged=True (currentの壁情報)
+          - current=False, incoming=False -> merged=False
+
+        Returns:
+            incoming側のゴール位置（存在する場合）
+        """
+        incoming_walls, incoming_observed, goal, _ = read_maze_ultracompact(data)
+
+        if len(incoming_walls) != self.size:
+            raise ValueError(f"Size mismatch: expected {self.size}, got {len(incoming_walls)}")
+
+        merged_walls: List[List[List[bool]]] = [
+            [[False] * 4 for _ in range(self.size)] for _ in range(self.size)
+        ]
+        merged_observed: List[List[List[bool]]] = [
+            [[False] * 4 for _ in range(self.size)] for _ in range(self.size)
+        ]
+
+        for y in range(self.size):
+            for x in range(self.size):
+                for d in range(4):
+                    cur_obs = self.observed[y][x][d]
+                    inc_obs = incoming_observed[y][x][d]
+
+                    if cur_obs:
+                        merged_observed[y][x][d] = True
+                        merged_walls[y][x][d] = self.known_walls[y][x][d]
+                    elif inc_obs:
+                        merged_observed[y][x][d] = True
+                        merged_walls[y][x][d] = incoming_walls[y][x][d]
+                    else:
+                        merged_observed[y][x][d] = False
+                        merged_walls[y][x][d] = self.known_walls[y][x][d]
+
+        self.known_walls = merged_walls
+        self.observed = merged_observed
+        self._recompute_distance_map()
+        return goal
+
     def _neighbors_open(self, x: int, y: int) -> Iterable[Tuple[int, int]]:
         for d in Direction:
             if self._can_move_abs(x, y, d):
