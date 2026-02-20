@@ -116,8 +116,8 @@ def detect_walls(sensor_data: dict) -> tuple[bool, bool, bool]:
     
     left_wall = ls >= LS_THRESHOLD
     right_wall = rs >= RS_THRESHOLD
-    # 前壁：左側と右側の両方が閾値以上
-    front_wall = lf >= LF_RF_THRESHOLD and rf >= LF_RF_THRESHOLD
+    # 前壁：左側と右側のいずれかが閾値以上
+    front_wall = lf >= LF_RF_THRESHOLD or rf >= LF_RF_THRESHOLD
     
     print(f"#Wall detection: LF={lf} RF={rf} LS={ls} RS={rs}")
     print(f"#  Left={left_wall}, Front={front_wall}, Right={right_wall}")
@@ -967,6 +967,41 @@ def main() -> int:
         # その分をアルゴリズムに通知しておく
         robot.explorer.step_forward() 
         agent_info = {} # 他エージェントの位置情報を格納する辞書
+
+        robot.mob_thread.send_command('WALL', True)        
+        # スタートゲートを検出する
+        cnt = 0
+        while True:
+            time.sleep(0.2)
+            sensor_data, _ = get_sensor_data_with_retry(robot)
+            print(f"#LF:{sensor_data['lf']:.2f}, RF:{sensor_data['rf']:.2f}")
+            _, is_front_wall, _ = detect_walls(sensor_data)
+            if is_front_wall:
+                cnt += 1
+            else:
+                cnt = 0
+            if cnt >= 3: # スタートゲートが3回連続で検出された
+                print("#スタートゲート検出")
+                break
+        
+        print("#スタートゲートが開くまで待機中")
+
+        cnt = 0
+        while True:
+            time.sleep(0.2)
+            sensor_data, _ = get_sensor_data_with_retry(robot)
+            print(f"#LF:{sensor_data['lf']:.2f}, RF:{sensor_data['rf']:.2f}")
+            _, is_front_wall, _ = detect_walls(sensor_data)
+            if not is_front_wall:
+                cnt += 1
+            else:
+                cnt = 0
+            if cnt >= 3: # スタートゲートが3回連続で検出されなかった
+                print("#スタートゲートが開きました！")
+                break
+        
+        time.sleep(0.5)
+        
         while True:
             # 迷路探索実行
             result = run_maze_exploration(robot, args.max_steps, state, agent_info)
