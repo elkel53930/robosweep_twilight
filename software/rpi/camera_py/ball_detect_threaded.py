@@ -114,6 +114,9 @@ class BallDetectThread:
         Returns:
             bool: 更新があった場合True、タイムアウトした場合False
         """
+        # 呼び出し前の更新を無視するため、フラグをクリア
+        with self.ball_detected_lock:
+            self._detection_updated_since_last_check = False
         start_time = time.time()
         while time.time() - start_time < timeout:
             if self.has_detection_updated():
