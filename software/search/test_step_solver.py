@@ -251,6 +251,8 @@ def _run_one(maze_path: Path, *, max_steps: int, auto: bool, debug_parse: bool) 
 
         prev_pose = Pose(explorer.pose.x, explorer.pose.y, explorer.pose.heading)
         new_heading = explorer.decide_heading(left, front, right)
+        explorer.set_heading(new_heading) # 進行方向を更新
+        explorer.step_forward() # 迷路情報上の位置を更新
 
         # Verify the move was legal w.r.t. the *true* map.
         dx = explorer.pose.x - prev_pose.x

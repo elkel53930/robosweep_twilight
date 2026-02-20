@@ -169,7 +169,7 @@ class Arm(ArmBase):
             Arm.CATCH_POSITION = 42.0
             Arm.RUN_POSITION = -90.0
         elif machine_id == 2:
-            Arm.CATCH_POSITION = 45.0
+            Arm.CATCH_POSITION = 46.0
             Arm.RUN_POSITION = -85
         # Futabaサーボ設定
         self.arm_servo_id = arm_servo_id

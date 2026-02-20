@@ -605,14 +605,14 @@ class BaseExplorer:
         if right is not None:
             self.mark_wall(x, y, h.right(), right)
 
-    def _can_move_abs(self, x: int, y: int, d: Direction) -> bool:
+    def _can_move_abs(self, x: int, y: int, d: Direction, *, use_virtual_walls: bool = True) -> bool:
         # Outside the maze boundary is always a wall.
         dx, dy = DIR_VECTORS[d]
         nx, ny = x + dx, y + dy
         if not _in_bounds(nx, ny, self.size):
             return False
 
-        if self.virtual_walls[y][x][int(d)]:
+        if use_virtual_walls and self.virtual_walls[y][x][int(d)]:
             return False
 
         # If we *observed* a wall and it exists => blocked.
@@ -651,6 +651,8 @@ class BaseExplorer:
         If show_distance is True, cell contents are shown as 2-digit hex values
         from the distance map (values > 255 are shown as "IN").
         """
+        
+        self._recompute_distance_map(use_virtual_walls=show_virtual_walls)
 
         # We draw from top row (y=size-1) down to 0 so that (0,0) is left-bottom.
         heading_char = {
@@ -822,7 +824,14 @@ class BaseExplorer:
         self.load_maze(known_walls, observed, pose=start_pose if load_pose else None)
         return goal
 
-    def decide_heading(self, left_wall: bool, front_wall: bool, right_wall: bool) -> Direction | None:
+    def decide_heading(
+        self,
+        left_wall: bool,
+        front_wall: bool,
+        right_wall: bool,
+        *,
+        use_virtual_walls: bool = True,
+    ) -> Direction | None:
         raise NotImplementedError
 
 
@@ -918,15 +927,15 @@ class AdachiExplorer(BaseExplorer):
         self._recompute_distance_map()
         return goal
 
-    def _neighbors_open(self, x: int, y: int) -> Iterable[Tuple[int, int]]:
+    def _neighbors_open(self, x: int, y: int, *, use_virtual_walls: bool = True) -> Iterable[Tuple[int, int]]:
         for d in Direction:
-            if self._can_move_abs(x, y, d):
+            if self._can_move_abs(x, y, d, use_virtual_walls=use_virtual_walls):
                 dx, dy = DIR_VECTORS[d]
                 nx, ny = x + dx, y + dy
                 if _in_bounds(nx, ny, self.size):
                     yield nx, ny
 
-    def _recompute_distance_map(self) -> None:
+    def _recompute_distance_map(self, *, use_virtual_walls: bool = True) -> None:
         # Multi-source BFS (uniform costs).
         self.dist = [[INF] * self.size for _ in range(self.size)]
 
@@ -942,7 +951,7 @@ class AdachiExplorer(BaseExplorer):
         while q:
             x, y = q.popleft()
             nd = self.dist[y][x] + 1
-            for nx, ny in self._neighbors_open(x, y):
+            for nx, ny in self._neighbors_open(x, y, use_virtual_walls=use_virtual_walls):
                 if self.dist[ny][nx] > nd:
                     self.dist[ny][nx] = nd
                     q.append((nx, ny))
@@ -989,8 +998,18 @@ class AdachiExplorer(BaseExplorer):
             現在のPoseオブジェクト
         """
         return self.pose
+
+    def set_heading(self, heading: Direction | int) -> None:
+        """進行方向（heading）を設定
+        
+        Args:
+            heading: Direction もしくは int(0..3)
+        """
+        if isinstance(heading, int):
+            heading = Direction(heading)
+        self.pose.heading = heading
     
-    def get_distance_map(self, from_x: int, from_y: int) -> List[List[int]]:
+    def get_distance_map(self, from_x: int, from_y: int, *, use_virtual_walls: bool = True) -> List[List[int]]:
         """始点から全マスへの最短ステップ数マップを計算
         
         現在の壁情報に基づいて、始点から各マスまでの最短距離を計算します。
@@ -1021,7 +1040,7 @@ class AdachiExplorer(BaseExplorer):
             
             # 4方向をチェック
             for d in Direction:
-                if self._can_move_abs(x, y, d):
+                if self._can_move_abs(x, y, d, use_virtual_walls=use_virtual_walls):
                     dx, dy = DIR_VECTORS[d]
                     nx, ny = x + dx, y + dy
                     if _in_bounds(nx, ny, self.size):
@@ -1044,12 +1063,19 @@ class AdachiExplorer(BaseExplorer):
             return h.back()
         raise ValueError(f"unknown rel direction: {rel}")
 
-    def decide_heading(self, left_wall: bool|None, front_wall: bool|None, right_wall: bool|None) -> Direction | None:
+    def decide_heading(
+        self,
+        left_wall: bool | None,
+        front_wall: bool | None,
+        right_wall: bool | None,
+        *,
+        use_virtual_walls: bool = True,
+    ) -> Direction | None:
         # 1) Update known walls for this cell.
         self.update_walls_from_relative(left_wall, front_wall, right_wall)
 
         # 2) Recompute distances with updated walls.
-        self._recompute_distance_map()
+        self._recompute_distance_map(use_virtual_walls=use_virtual_walls)
 
         x, y, h = self.pose.x, self.pose.y, self.pose.heading
 
@@ -1064,7 +1090,7 @@ class AdachiExplorer(BaseExplorer):
 
         for rel in self.direction_priority:
             d = self._rel_to_abs(rel)
-            if not self._can_move_abs(x, y, d):
+            if not self._can_move_abs(x, y, d, use_virtual_walls=use_virtual_walls):
                 continue
             dx, dy = DIR_VECTORS[d]
             nx, ny = x + dx, y + dy
@@ -1078,7 +1104,5 @@ class AdachiExplorer(BaseExplorer):
         # If no valid move exists (all neighbors unreachable), goal is unreachable
         if best_abs is None:
             return None
-
-        self.pose.heading = best_abs
-        self.step_forward()
-        return self.pose.heading
+        # best_abs is the direction to move that leads to the lowest distance to goal
+        return best_abs

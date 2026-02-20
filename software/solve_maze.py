@@ -168,6 +168,8 @@ def main() -> int:
             
             # 次の進行方向を決定（内部で姿勢が更新される）
             next_heading = explorer.decide_heading(left_wall, front_wall, right_wall)
+            explorer.set_heading(next_heading) # 進行方向を更新
+            explorer.step_forward() # 迷路情報上の位置を更新
             
             # ゴールまでの道がない場合
             if next_heading is None:

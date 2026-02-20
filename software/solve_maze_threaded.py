@@ -76,7 +76,7 @@ LS_THRESHOLD = 100  # 左前壁検出
 RS_THRESHOLD = 100  # 右前壁検出
 LF_RF_THRESHOLD = 50  # 左側・右側壁検出（両方がこの値以上で前壁あり）
 
-FWD_SPEED = 350
+FWD_SPEED = 300
 FWD_ACC = 1000
 
 #THROW_POSITION_UNIT1 = [(0,7), (1,7), (2,7), (3,7), (4,7), (5,7), (6,7), (7,7)]
@@ -96,6 +96,9 @@ AREA_INCHARGE = [
     [(x, y) for y in range(0, 4) for x in range(0, 3)], # (0, 0)から(2, 3)までのエリアを担当
     [(x, y) for y in range(0, 4) for x in range(3, 6)]  # (3, 0)から(5, 3)までのエリアを担当
 ]
+
+# デッドロック防止のため、１号機は２号機の隣まで迫って良いが２号機は１号機から距離取らなくてはならない。
+MINIMUM_DISTANCE_FROM_OTHER_AGENT = [0, 2] # 他エージェントから最低限確保したい距離（マス数）
 
 def detect_walls(sensor_data: dict) -> tuple[bool, bool, bool]:
     """センサーデータから壁の有無を判定
@@ -250,14 +253,14 @@ def initialize_arm(arduino_port: str = '/dev/ttyARM') -> Arm:
           arduino_port=arduino_port,
           arm_servo_id=1,
           arm_min_angle=-90.0,
-          arm_max_angle=45.0,
+          arm_max_angle=50.0,
           machine_id=machine_id)
     if not arm.connect_arduino():
         raise RuntimeError("Arduinoへの接続に失敗しました")
     
     arm.set_motor_speed(10)
     arm.set_servo_arm_torque(True)
-    arm.set_servo_arm_angle(Arm.RUN_POSITION, 500)
+    arm.set_servo_arm_angle(Arm.THROW_POSITION, 500)
     time.sleep(0.5)
     arm.set_motor_speed(0)
     time.sleep(0.5)
@@ -292,44 +295,68 @@ def get_sensor_data_with_retry(robot: Robot, max_retries: int = 3) -> tuple[dict
     return None, False
 
 
-def generate_action(robot: Robot, action: str) -> list[tuple]:
+def generate_action(action: str, wait_for_other_agent: bool) -> list[tuple]:
     """アクションに対応するコマンドリストを生成
     
     Args:
-        robot: Robotインスタンス
         action: 'fwd', 'left', 'right', 'back' のいずれか
     
     Returns:
         コマンドのリスト [(command, args...), ...]
         各要素は send_command() の引数タプル
     """
-    if action == 'fwd':
-        # 次のマスへ前進（180mm）
-        return [('FWD', FWD_SPEED, FWD_ACC, 90),
-                ('FWD', FWD_SPEED, FWD_ACC, 90)]
-    elif action == 'left':
-        # 停止 → 左旋回 → 前進
-        return [
-            ('STOP', FWD_SPEED, FWD_ACC, 90),
-            ('TURN', 1.5708),  # pi/2
-            ('FWD', FWD_SPEED, FWD_ACC, 90)
-        ]
-    elif action == 'right':
-        # 停止 → 右旋回 → 前進
-        return [
-            ('STOP', FWD_SPEED, FWD_ACC, 90),
-            ('TURN', -1.5708),  # -pi/2
-            ('FWD', FWD_SPEED, FWD_ACC, 90)
-        ]
-    elif action == 'back':
-        # 停止 → 180度旋回 → 前進
-        return [
-            ('STOP', FWD_SPEED, FWD_ACC, 90),
-            ('TURN', 3.14159),  # pi
-            ('FWD', FWD_SPEED, FWD_ACC, 90)
-        ]
+    if not wait_for_other_agent:
+        if action == 'fwd':
+            # 次のマスへ前進（180mm）
+            return [('FWD', FWD_SPEED, FWD_ACC, 90),
+                    ('FWD', FWD_SPEED, FWD_ACC, 90)]
+        elif action == 'left':
+            # 停止 → 左旋回 → 前進
+            return [
+                ('STOP', FWD_SPEED, FWD_ACC, 90),
+                ('TURN', 1.5708),  # pi/2
+                ('FWD', FWD_SPEED, FWD_ACC, 90)
+            ]
+        elif action == 'right':
+            # 停止 → 右旋回 → 前進
+            return [
+                ('STOP', FWD_SPEED, FWD_ACC, 90),
+                ('TURN', -1.5708),  # -pi/2
+                ('FWD', FWD_SPEED, FWD_ACC, 90)
+            ]
+        elif action == 'back':
+            # 停止 → 180度旋回 → 前進
+            return [
+                ('STOP', FWD_SPEED, FWD_ACC, 90),
+                ('TURN', 3.14159),  # pi
+                ('FWD', FWD_SPEED, FWD_ACC, 90)
+            ]
+        else:
+            raise ValueError(f"Unknown action: {action}")
     else:
-        raise ValueError(f"Unknown action: {action}")
+        if action == 'fwd':
+            # 次のマスへ前進（180mm）
+            return [('FWD', FWD_SPEED, FWD_ACC, 90)]
+        elif action == 'left':
+            # 停止 → 左旋回 → 前進
+            return [
+                ('TURN', 1.5708),  # pi/2
+                ('FWD', FWD_SPEED, FWD_ACC, 90)
+            ]
+        elif action == 'right':
+            # 停止 → 右旋回 → 前進
+            return [
+                ('TURN', -1.5708),  # -pi/2
+                ('FWD', FWD_SPEED, FWD_ACC, 90)
+            ]
+        elif action == 'back':
+            # 停止 → 180度旋回 → 前進
+            return [
+                ('TURN', 3.14159),  # pi
+                ('FWD', FWD_SPEED, FWD_ACC, 90)
+            ]
+        else:
+            raise ValueError(f"Unknown action: {action}")
 
 
 def wait_for_done(robot: Robot, max_wait_seconds: float = 10.0) -> bool:
@@ -547,7 +574,62 @@ def update_maze_map(robot: Robot) -> None:
     robot.explorer.update_walls_from_relative(left_wall, front_wall, right_wall) # 壁を更新
 
 
-def run_maze_exploration(robot: Robot, max_steps: int, state: State) -> str:
+def process_other_agent_info(robot: Robot, agent_info: dict) -> None:
+    while True:
+        # 他のエージェントからの情報を取得
+        msg = robot.comm_client.recv(timeout=0) # 非ブロッキングで受信
+        if msg is None:
+            break # 受信するメッセージがなくなったらループを抜ける
+        
+        print(f"#Received message: {msg}")
+        # 受信した迷路情報を反映
+        try:
+            parts = msg.split()
+            
+            if len(parts) >= 8:
+                if parts[0] != "ID" or parts[2] != "POS" or parts[6] != "MAZE":
+                    print(f"#Warning: 受信したメッセージの形式が不正です: {msg}")
+                    continue
+                # [0] : "ID"
+                id = parts[1]
+                # [2] : "POS"
+                x = int(parts[3])
+                y = int(parts[4])
+                # heading_str = parts[5]
+                # [6] : "MAZE"
+                maze_data = parts[7]
+                agent_info[id] = (x, y)
+                robot.explorer.merge_ultracompact(maze_data)
+                print(f"#エージェント {id} の迷路情報をマージしました")
+            else:
+                print(f"#Warning: 受信したメッセージの形式が不正です: len(parts)={len(parts)}")
+        except Exception as e:
+            print(f"#Error processing received message: {e}")
+    
+    robot.explorer.clear_virtual_walls() # 毎ステップ、他エージェントの位置に仮想壁を設定する前に一度クリア
+    for agent in agent_info:
+        print(f"#エージェント {agent} の位置: ({agent_info[agent][0]}, {agent_info[agent][1]})")
+        # 他エージェントから2ステップ以内のマスに仮想壁を設定
+        agent_x, agent_y = agent_info[agent]
+        dist_map = robot.explorer.get_distance_map(agent_x, agent_y, use_virtual_walls=False)
+        for y in range(robot.explorer.size):
+            for x in range(robot.explorer.size):
+                if dist_map[y][x] <= MINIMUM_DISTANCE_FROM_OTHER_AGENT[machine_index]:
+                    robot.explorer.set_virtual_wall(x, y, Direction.NORTH)
+                    robot.explorer.set_virtual_wall(x, y, Direction.SOUTH)
+                    robot.explorer.set_virtual_wall(x, y, Direction.EAST)
+                    robot.explorer.set_virtual_wall(x, y, Direction.WEST)
+
+
+def show_maze_map(robot: Robot) -> None:
+    print(f"#現在のゴール位置: {robot.explorer.goals}")
+    print(f"#現在の位置と向き: ({robot.explorer.pose.x}, {robot.explorer.pose.y}) heading={robot.explorer.pose.heading.name}")
+    print("\n=== 現在の迷路マップ ===")
+    maze_map = robot.explorer.render_text(show_goal=robot.explorer.goals[0] if robot.explorer.goals else None, show_distance=True)
+    print(f"\n{maze_map}")
+
+
+def run_maze_exploration(robot: Robot, max_steps: int, state: State, agent_info: dict) -> str:
     """迷路探索のメインループを実行
     
     Args:
@@ -567,6 +649,7 @@ def run_maze_exploration(robot: Robot, max_steps: int, state: State) -> str:
     # TODO : ボールを持って走行中にボールを発見したケース
     
     reset_sensors(robot)
+    wait_for_other_agent = False # 他のエージェントが進路を塞いでいるかどうか
     
     print("\n=== 迷路探索開始 ===")
     
@@ -604,30 +687,41 @@ def run_maze_exploration(robot: Robot, max_steps: int, state: State) -> str:
     
     while step_count < max_steps:
         step_count += 1
-        print(f"\n--- Step {step_count} ---")
+        print(f"\n\n\n--------- Step {step_count} ---------\n\n")
         
         # ここで現在の位置や迷路情報を送信
-        robot.comm_client.send(f"POS {robot.explorer.pose.x} {robot.explorer.pose.y} {robot.explorer.pose.heading.name} MAZE {robot.explorer.export_ultracompact()}")
-        # センサーデータ取得
-        sensor_data, success = get_sensor_data_with_retry(robot)
+        print(f"#現在の位置を送信: ({robot.explorer.pose.x}, {robot.explorer.pose.y}) heading={robot.explorer.pose.heading.name}")
+        robot.comm_client.send(f"ID {machine_id} POS {robot.explorer.pose.x} {robot.explorer.pose.y} {robot.explorer.pose.heading.name} MAZE {robot.explorer.export_ultracompact()}")
         
-        if not success:
-            consecutive_sensor_failures += 1
-            print(f"#センサーデータ取得失敗（連続{consecutive_sensor_failures}回）")
+        process_other_agent_info(robot, agent_info) # 他のエージェントからの情報を処理して迷路マップに反映
+
+        # 迷路マップ表示
+        show_maze_map(robot)
+
+        if not wait_for_other_agent:
+            # センサーデータ取得
+            sensor_data, success = get_sensor_data_with_retry(robot)
             
-            if consecutive_sensor_failures >= 5:
-                print("\n=== センサー取得エラーが多発しています。中断します ===")
-                robot.mob_thread.send_command('STOP', FWD_SPEED, FWD_ACC, 90)
-                robot.mob_thread.wait_response(timeout=1.0)
-                return 'SENSOR_ERROR'
+            if not success:
+                consecutive_sensor_failures += 1
+                print(f"#センサーデータ取得失敗（連続{consecutive_sensor_failures}回）")
+                
+                if consecutive_sensor_failures >= 5:
+                    print("\n=== センサー取得エラーが多発しています。中断します ===")
+                    robot.mob_thread.send_command('STOP', FWD_SPEED, FWD_ACC, 90)
+                    robot.mob_thread.wait_response(timeout=1.0)
+                    return 'SENSOR_ERROR'
+                
+                time.sleep(0.5)
+                continue
             
-            time.sleep(0.5)
-            continue
-        
-        consecutive_sensor_failures = 0
-        
-        # 壁検出
-        left_wall, front_wall, right_wall = detect_walls(sensor_data)
+            consecutive_sensor_failures = 0
+            
+            # 壁検出
+            left_wall, front_wall, right_wall = detect_walls(sensor_data)
+        else:
+            # 他のエージェントをまっている状態なので、センサーデータは取得せず、壁情報も更新しない
+            print("#他のエージェントを待っている状態なので、センサーデータは取得せず、壁情報も更新しません")
         
         # 現在の位置と向き
         current_x, current_y = robot.explorer.pose.x, robot.explorer.pose.y
@@ -643,23 +737,55 @@ def run_maze_exploration(robot: Robot, max_steps: int, state: State) -> str:
             return 'GOAL_REACHED'
         
         # 次の進行方向を決定
-        next_heading = robot.explorer.decide_heading(left_wall, front_wall, right_wall)
-        
-        if next_heading is None:
-            print(f"\n=== ゴールまでの道がありません！ ===")
-            print(f"現在位置 ({current_x}, {current_y}) からゴールに到達できません")
-            robot.mob_thread.send_command('STOP', FWD_SPEED, FWD_ACC, 90)
-            robot.mob_thread.wait_response()
-            return 'NO_PATH'
-        
+        if not wait_for_other_agent:
+            # 他エージェント待ちではない
+            next_heading = robot.explorer.decide_heading(left_wall, front_wall, right_wall, use_virtual_walls=True)
+            if next_heading is None:
+                # ゴールへの道がない場合は、仮想壁を無視してもう一度進行方向を決定してみる
+                print("#ゴールへの道が見つかりませんでした。仮想壁を無視して再度進行方向を検討します")
+                next_heading = robot.explorer.decide_heading(left_wall, front_wall, right_wall, use_virtual_walls=False)
+                if next_heading is None:
+                    print(f"\n=== ゴールまでの道がありません！ ===")
+                    print(f"現在位置 ({current_x}, {current_y}) からゴールに到達できません")
+                    robot.mob_thread.send_command('STOP', FWD_SPEED, FWD_ACC, 90)
+                    robot.mob_thread.wait_response()
+                    return 'NO_PATH'
+
+                else: # next_heading is not None
+                    print("#仮想壁を無視した結果、進行方向が見つかりました。")
+                    robot.comm_client.send(f"ID {machine_id} POS {robot.explorer.pose.x} {robot.explorer.pose.y} {robot.explorer.pose.heading.name} MAZE {robot.explorer.export_ultracompact()}")
+                    if not wait_for_other_agent:
+                        print("#その場で停止して他のエージェントを待ちます。")
+                        robot.mob_thread.send_command('STOP', FWD_SPEED, FWD_ACC, 90)
+                        wait_for_done(robot)
+                    else:
+                        print("#他のエージェントをまって停止しています。")
+                    wait_for_other_agent = True # 他のエージェントが進路を塞いでいるので、その場で停止する。
+                    time.sleep(1)
+                    continue
+        else:
+            # 他エージェント待ち。
+            # 最新の他エージェントの情報をもとに、探索を再開できるか確認。
+            next_heading = robot.explorer.decide_heading(left_wall, front_wall, right_wall, use_virtual_walls=True)
+            if next_heading is None:
+                print("#他エージェントを待っていましたが、進行可能な方向がまだ見つかりません。引き続き待ちます。")
+                time.sleep(1)
+                continue
+            else:
+                print("#他エージェントを待っていましたが、進行可能な方向が見つかりました。探索を再開します。")
+                reset_sensors(robot)
+
         print(f"#Next heading: {next_heading.name}")
+        robot.explorer.set_heading(next_heading) # 進行方向を更新
+        robot.explorer.step_forward() # 迷路情報上の位置を更新
         
         # アクション決定
         action = relative_to_action(current_heading, next_heading)
         print(f"#Action: {action}")
         
         # アクションに対応するコマンドリストを取得
-        command_queue = generate_action(robot, action)
+        command_queue = generate_action(action, wait_for_other_agent)
+        wait_for_other_agent = False
         print(f"#Command queue: {len(command_queue)} commands")
         
         # コマンドキューを1つずつ実行
@@ -672,6 +798,9 @@ def run_maze_exploration(robot: Robot, max_steps: int, state: State) -> str:
             if not wait_for_done(robot):
                 print(f"#Warning: コマンド {i+1}/{len(command_queue)} の応答待機に失敗")
                 return "EXIT"
+            if last_command[0] == 'TURN':
+                # 旋回コマンドの後は、カメラの更新を待つ。
+                robot.ball_thread.wait_detection_update()
             if ball_result != "CATCHED": # すでにボールキャッチ成功している場合は以降のコマンド実行後もボール検出をスキップ
                 ball_result = catch_ball_when_detect(robot,last_command, state, front_wall_check=last_command[0]=='STOP')
         
@@ -688,12 +817,6 @@ def run_maze_exploration(robot: Robot, max_steps: int, state: State) -> str:
             robot.mob_thread.send_command('STOP', FWD_SPEED, FWD_ACC, 90)
             robot.mob_thread.wait_response()
             return 'BALL_LOST'
-
-        # 迷路マップ表示（10ステップごと）
-        if step_count % 10 == 0:
-            print("\n=== 現在の迷路マップ ===")
-            maze_map = robot.explorer.render_text(show_goal=robot.explorer.goals[0] if robot.explorer.goals else None, show_distance=True)
-            print(f"\n{maze_map}")
     
     if step_count >= max_steps:
         print(f"\n=== 最大ステップ数 {max_steps} に到達しました ===")
@@ -740,7 +863,7 @@ def choice_next_goal(explorer: AdachiExplorer) -> list[tuple[int, int]]:
     least_visited_cells = []
 
     current_pos_x, current_pos_y = explorer.get_current_position()
-    dist_map = explorer.get_distance_map(current_pos_x, current_pos_y)
+    dist_map = explorer.get_distance_map(current_pos_x, current_pos_y, use_virtual_walls=False) # ゴール設定には仮想壁を考慮しない
     for y in range(explorer.size):
         for x in range(explorer.size):     
             # ゴールとしての条件を満たしていないマスは除外
@@ -760,7 +883,8 @@ def choice_next_goal(explorer: AdachiExplorer) -> list[tuple[int, int]]:
         print(f"該当マス数: {len(least_visited_cells)}")
         print(f"選択されたマス: {next_goals}")
     else:
-        next_goals = [(0, 0)]
+        # スタート地点
+        next_goals = [START_POSITION[machine_index]]
     return next_goals
 
 def show_title() -> None:
@@ -842,9 +966,10 @@ def main() -> int:
         # 一番最初の前進はアルゴリズムによらずに実行されるため、
         # その分をアルゴリズムに通知しておく
         robot.explorer.step_forward() 
+        agent_info = {} # 他エージェントの位置情報を格納する辞書
         while True:
             # 迷路探索実行
-            result = run_maze_exploration(robot, args.max_steps, state)
+            result = run_maze_exploration(robot, args.max_steps, state, agent_info)
             
             # 探索結果を表示
             print(f"\n=== 探索結果: {result} ===")
@@ -928,8 +1053,17 @@ def main() -> int:
             # 新たなゴールを設定して探索再開
             robot.explorer.set_goals(next_goals)
             current_heading = robot.explorer.pose.heading
-            next_heading = robot.explorer.decide_heading(None, None, None)
-            # 到達不可能だとわかっているマスは選択されないので、必ず進行方向が得られる
+            show_maze_map(robot)
+            while True:
+                next_heading = robot.explorer.decide_heading(None, None, None)
+                if next_heading is not None:
+                    break
+                time.sleep(1) # 他のエージェントの移動を待つ
+                process_other_agent_info(robot, agent_info)            
+            
+            robot.explorer.set_heading(next_heading) # 進行方向を更新
+            robot.explorer.step_forward() # 迷路情報上の位置を更新
+            
             print(f"#Next heading: {next_heading.name}")
             print(f"#Current heading: {current_heading.name}")
             action = relative_to_action(current_heading, next_heading)

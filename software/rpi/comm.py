@@ -99,7 +99,10 @@ class RobotServer:
             conn.sendall((msg + "\n").encode())
 
     def recv(self, timeout=None):
-        return self.recv_queue.get(timeout=timeout)
+        try:
+            return self.recv_queue.get(timeout=timeout)
+        except queue.Empty:
+            return None
 
 
 # ===============================
@@ -183,4 +186,7 @@ class RobotClient:
             self.sock.sendall((msg + "\n").encode())
 
     def recv(self, timeout=None):
-        return self.recv_queue.get(timeout=timeout)
+        try:
+            return self.recv_queue.get(timeout=timeout)
+        except queue.Empty:
+            return None
