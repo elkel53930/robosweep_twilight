@@ -288,8 +288,8 @@ class BallDetect:
             radius = detection_result['radius']
             center_x, center_y = detection_result['center']
             if (self.min_ball_radius <= radius < self.max_ball_radius and
-                center_y >= self.min_center_y and
-                detect_area[center_y][center_x] == "1"):
+                center_y >= self.min_center_y):# and
+ #               detect_area[center_y][center_x] == "1"):
                 is_ball_in_frame = True
         
         # 連続検出カウントを更新
