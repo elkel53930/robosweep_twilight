@@ -104,7 +104,7 @@ static constexpr float WALL_SENSOR_THRESHOLD = 100.0f;  // 壁検出閾値
 static constexpr float WALL_SENSOR_TARGET_LS = 199.0f;     // 中央時の目標値
 static constexpr float WALL_SENSOR_TARGET_RS = 207.0f;     // 中央時の目標値
 
-static constexpr float WALL_SENSOR_GAIN = 0.000005f;      // 壁センサフィードバックゲイン [m/s] per sensor unit
+static constexpr float WALL_SENSOR_GAIN = 0.000005f;      // 壁センサフィードバックゲイン 角度目標への影響の大きさ
 static constexpr float WALL_CORRECTION_CUT_OFF_DISTANCE = 30.0f; // 壁センサ補正を行う残距離の閾値 [mm]
 
 // 壁センサを使用した横方向補正値を計算
