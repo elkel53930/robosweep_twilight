@@ -326,6 +326,20 @@ def main():
     )
     picam2.configure(config)
     picam2.start()
+
+    # シャッタースピードを2倍に（露光時間を半分に）し、暗めの画像に調整
+    try:
+        metadata = picam2.capture_metadata()
+        current_exposure = metadata.get("ExposureTime")
+        if current_exposure:
+            new_exposure = max(1, int(current_exposure / 2))
+            picam2.set_controls({
+                "AeEnable": False,
+                "ExposureTime": new_exposure,
+                "AnalogueGain": 1.0
+            })
+    except Exception:
+        pass
     
     # BallDetectクラスのインスタンス作成
     detector = BallDetect(debug=False)

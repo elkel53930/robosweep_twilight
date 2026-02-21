@@ -25,8 +25,7 @@ class BallDetect:
                  max_radius=1000.0,
                  min_contour_points=30,
                  debug=False,
-                 ball_diameter_mm=70.0,
-                 image_width_px=None):
+                 ball_diameter_mm=70.0):
         """
         Args:
             hsv_lower: HSV下限値 (numpy array [H, S, V])
@@ -41,9 +40,9 @@ class BallDetect:
             ball_diameter_mm: ボールの実際の直径 (mm) (float)
             image_width_px: 画像幅 (ピクセル) - Noneの場合は実際の画像から自動取得
         """
-        # デフォルトパラメータ（黄色ボール用）
-        self.hsv_lower = hsv_lower if hsv_lower is not None else np.array([15, 150, 80])
-        self.hsv_upper = hsv_upper if hsv_upper is not None else np.array([36, 255, 200])
+        # デフォルトパラメータ（黄色ボール用・暗め露光に合わせてV/S下限を調整）
+        self.hsv_lower = hsv_lower if hsv_lower is not None else np.array([15, 120, 50])
+        self.hsv_upper = hsv_upper if hsv_upper is not None else np.array([36, 255, 220])
         self.morph_kernel = morph_kernel
         self.ransac_residual_threshold = ransac_residual_threshold
         self.ransac_max_trials = ransac_max_trials
@@ -54,10 +53,12 @@ class BallDetect:
         
         # 距離推定用パラメータ
         self.ball_diameter_mm = ball_diameter_mm
-        self.image_width_px = image_width_px
+        self.image_width_px = None # 後で画像から取得
+        self.image_height_px = None  # 後で画像から取得
+        
         
         # ボール検出状態管理用の属性
-        self.min_ball_radius = 40.0  # 検出するボールの最小半径 (pixels)
+        self.min_ball_radius = 50.0  # 検出するボールの最小半径 (pixels)
         self.max_ball_radius = 200.0  # 検出するボールの最大半径 (pixels)
         self.min_center_y = 80  # ボール中心のY座標の最小値 (pixels)
         self.detection_threshold = 2  # 連続検出の閾値 (フレーム数)
@@ -91,6 +92,7 @@ class BallDetect:
         if self.image_width_px is None:
             height, width = bgr_frame.shape[:2]
             self.image_width_px = width
+            self.image_height_px = height
         
         # HSVに変換
         hsv = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2HSV)
@@ -287,10 +289,12 @@ class BallDetect:
         if detection_result is not None:
             radius = detection_result['radius']
             center_x, center_y = detection_result['center']
-            if (self.min_ball_radius <= radius < self.max_ball_radius and
-                center_y >= self.min_center_y):# and
- #               detect_area[center_y][center_x] == "1"):
-                is_ball_in_frame = True
+            if center_y > 0 and center_y <= self.image_height_px and center_x > 0 and center_x <= self.image_width_px:
+                print(f"center_y={center_y}, center_x={center_x}, radius={radius}")
+                if (self.min_ball_radius <= radius < self.max_ball_radius and
+                    center_y >= self.min_center_y and
+                    detect_area[center_y][center_x] == "1"):
+                    is_ball_in_frame = True
         
         # 連続検出カウントを更新
         if is_ball_in_frame:
@@ -468,6 +472,20 @@ def main():
     )
     picam2.configure(config)
     picam2.start()
+
+    # シャッタースピードを2倍に（露光時間を半分に）し、暗めの画像に調整
+    try:
+        metadata = picam2.capture_metadata()
+        current_exposure = metadata.get("ExposureTime")
+        if current_exposure:
+            new_exposure = max(1, int(current_exposure / 2))
+            picam2.set_controls({
+                "AeEnable": False,
+                "ExposureTime": new_exposure,
+                "AnalogueGain": 1.0
+            })
+    except Exception:
+        pass
     
     # BallDetectクラスのインスタンス作成（デバッグモード有効）
     detector = BallDetect(debug=True)

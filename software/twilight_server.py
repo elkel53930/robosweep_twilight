@@ -1,11 +1,16 @@
 import time
 
 from rpi.comm import RobotServer
+import pyfiglet
 
 
 def main():
     server = RobotServer()
     server.start()
+    
+    title = pyfiglet.figlet_format("Twilight Server", font="slant")
+    print(title)
+    print("Waiting for clients to connect...")
 
     try:
         while True:

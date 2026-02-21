@@ -679,6 +679,8 @@ void updateStop(float dt_s) {
             target_vr_mps = 0.0f;
             target_vl_mps = 0.0f;
             motion.stop();
+            // 距離をリセット
+            sensors.reset_distance();
             enqueue_msg_line("DONE\n");
         } else {
             target_vr_mps = -STOP_BACKOFF_SPEED_MPS;
@@ -691,7 +693,7 @@ void updateStop(float dt_s) {
     if (!stop_active) return;
 
     stop_elapsed_s += dt_s;
-    if (stop_elapsed_s >= STOP_TIMEOUT_SEC) {
+    if (stop_elapsed_s >= STOP_TIMEOUT_SEC) { // タイムアウト: 強制停止してから少し後退する
         stop_active = false;
         stop_v_cmd_mmps = 0.0f;
         target_vr_mps = 0.0f;
@@ -699,6 +701,7 @@ void updateStop(float dt_s) {
         motion.stop();
         stop_backoff_active = true;
         stop_backoff_target_dist_mm = sensors.get_distance() - STOP_BACKOFF_DIST_MM;
+
         return;
     }
 

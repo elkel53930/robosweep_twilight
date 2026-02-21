@@ -59,7 +59,7 @@ position_interpolator = PositionInterpolator(csv_path)
 
 class State(Enum):
     SEARCH = 0 # ボールを持っていない状態でうろついている
-    SEARCH_WITH_BALL = 1 # ボールを持っている状態で投擲位置を目指している    
+    SEARCH_WITH_BALL = 1 # ボールを持っている状態で投擲位置を目指している
 
 @dataclass
 class Robot:
@@ -76,7 +76,7 @@ LS_THRESHOLD = 100  # 左前壁検出
 RS_THRESHOLD = 100  # 右前壁検出
 LF_RF_THRESHOLD = 50  # 左側・右側壁検出（両方がこの値以上で前壁あり）
 
-FWD_SPEED = 300
+FWD_SPEED = 280
 FWD_ACC = 1000
 
 #THROW_POSITION_UNIT1 = [(0,7), (1,7), (2,7), (3,7), (4,7), (5,7), (6,7), (7,7)]
@@ -100,7 +100,7 @@ AREA_INCHARGE = [
 # デッドロック防止のため、１号機は２号機の隣まで迫って良いが２号機は１号機から距離取らなくてはならない。
 MINIMUM_DISTANCE_FROM_OTHER_AGENT = [1, 2] # 他エージェントから最低限確保したい距離（マス数）
 
-def detect_walls(sensor_data: dict) -> tuple[bool, bool, bool]:
+def detect_walls(sensor_data: dict, or_mode: bool) -> tuple[bool, bool, bool]:
     """センサーデータから壁の有無を判定
     
     Args:
@@ -117,7 +117,10 @@ def detect_walls(sensor_data: dict) -> tuple[bool, bool, bool]:
     left_wall = ls >= LS_THRESHOLD
     right_wall = rs >= RS_THRESHOLD
     # 前壁：左側と右側のいずれかが閾値以上
-    front_wall = lf >= LF_RF_THRESHOLD or rf >= LF_RF_THRESHOLD
+    if or_mode:
+        front_wall = lf >= LF_RF_THRESHOLD or rf >= LF_RF_THRESHOLD
+    else:
+        front_wall = lf >= LF_RF_THRESHOLD and rf >= LF_RF_THRESHOLD
     
     print(f"#Wall detection: LF={lf} RF={rf} LS={ls} RS={rs}")
     print(f"#  Left={left_wall}, Front={front_wall}, Right={right_wall}")
@@ -217,6 +220,20 @@ def initialize_ball_detector() -> BallDetectThread:
     )
     picam2.configure(config)
     picam2.start()
+
+    # シャッタースピードを2倍に（露光時間を半分に）し、暗めの画像に調整
+    try:
+        metadata = picam2.capture_metadata()
+        current_exposure = metadata.get("ExposureTime")
+        if current_exposure:
+            new_exposure = max(1, int(current_exposure / 2))
+            picam2.set_controls({
+                "AeEnable": False,
+                "ExposureTime": new_exposure,
+                "AnalogueGain": 1.0
+            })
+    except Exception:
+        pass
     
     detector = BallDetect(debug=False)
     ball_thread = BallDetectThread(picam2, detector)
@@ -300,28 +317,33 @@ def generate_action(action: str, wait_for_other_agent: bool) -> list[tuple]:
     if not wait_for_other_agent:
         if action == 'fwd':
             # 次のマスへ前進（180mm）
-            return [('FWD', FWD_SPEED, FWD_ACC, 90),
-                    ('FWD', FWD_SPEED, FWD_ACC, 90)]
+            return [('FWD', FWD_SPEED, FWD_ACC, 45),
+                    ('FWD', FWD_SPEED, FWD_ACC, 45),
+                    ('FWD', FWD_SPEED, FWD_ACC, 45),
+                    ('FWD', FWD_SPEED, FWD_ACC, 45)]
         elif action == 'left':
             # 停止 → 左旋回 → 前進
             return [
                 ('STOP', FWD_SPEED, FWD_ACC, 90),
                 ('TURN', 1.5708),  # pi/2
-                ('FWD', FWD_SPEED, FWD_ACC, 90)
+                ('FWD', FWD_SPEED, FWD_ACC, 45),
+                ('FWD', FWD_SPEED, FWD_ACC, 45)
             ]
         elif action == 'right':
             # 停止 → 右旋回 → 前進
             return [
                 ('STOP', FWD_SPEED, FWD_ACC, 90),
                 ('TURN', -1.5708),  # -pi/2
-                ('FWD', FWD_SPEED, FWD_ACC, 90)
+                ('FWD', FWD_SPEED, FWD_ACC, 45),
+                ('FWD', FWD_SPEED, FWD_ACC, 45)
             ]
         elif action == 'back':
             # 停止 → 180度旋回 → 前進
             return [
                 ('STOP', FWD_SPEED, FWD_ACC, 90),
                 ('TURN', 3.14159),  # pi
-                ('FWD', FWD_SPEED, FWD_ACC, 90)
+                ('FWD', FWD_SPEED, FWD_ACC, 45),
+                ('FWD', FWD_SPEED, FWD_ACC, 45)
             ]
         else:
             raise ValueError(f"Unknown action: {action}")
@@ -361,6 +383,8 @@ def wait_for_done(robot: Robot, max_wait_seconds: float = 10.0) -> bool:
     Returns:
         正常にDONEを受信したかどうか
     """
+    
+    time.sleep(0.1)
     start_time = time.time()
     
     print("#Waiting for DONE...")
@@ -430,20 +454,20 @@ def catch_ball(robot: Robot, state: State) -> bool:
     
     # ボールを再度確認
     # 正面を向く
-    repeat = 10
+    repeat = 5
     detect_results= []
     time.sleep(1)
     for _ in range(repeat):
         detected, ball_info = detect()
         if detected:
             detect_results.append(ball_info)
-        else: # detect()のなかで10回トライしたのに見つけられなかった
+        else:
             print("#ボールが見つかりませんでした")
             reset_sensors(robot)
             return False
         time.sleep(0.1)
     
-    if len(detect_results) < 7:
+    if len(detect_results) < 4:
         print("#ボールが十分な回数見つかりませんでした")
         reset_sensors(robot)
         return False
@@ -453,8 +477,8 @@ def catch_ball(robot: Robot, state: State) -> bool:
     # ソートして外れ値を除去
     xs.sort()
     ys.sort()
-    xs = xs[2:-2]
-    ys = ys[2:-2]
+    xs = xs[1:-1]
+    ys = ys[1:-1]
     avg_x = sum(xs) / len(xs)
     avg_y = sum(ys) / len(ys)
     print(f"#ボール位置の平均: ({avg_x:.2f}, {avg_y:.2f})")
@@ -493,7 +517,9 @@ def catch_ball(robot: Robot, state: State) -> bool:
     
     # 角度を戻す
     angle_to_return = original_angle - after_angle
-    robot.mob_thread.send_command('TURN', angle_to_return)
+    time.sleep(0.1)
+    robot.mob_thread.send_command('TURN', angle_to_return * 3.0) # 経験的に計測値の３倍ぐらいズレる
+    time.sleep(0.1)
     robot.mob_thread.wait_response()
     
     if not catch_result:
@@ -537,7 +563,7 @@ def catch_ball_when_detect(robot: Robot, last_command: tuple, state: State, fron
         
         # 眼の前に壁がないか確認
         sensor_data, _ = get_sensor_data_with_retry(robot)
-        _, is_front_wall, _ = detect_walls(sensor_data)
+        _, is_front_wall, _ = detect_walls(sensor_data, or_mode=False)
         # 前壁チェックなし, または前壁チェックありかつ前壁がない場合
         if (not front_wall_check) or (front_wall_check and not is_front_wall):
             # 前壁チェックなし かつ 前壁がない
@@ -573,11 +599,11 @@ def catch_ball_when_detect(robot: Robot, last_command: tuple, state: State, fron
 
 def update_maze_map(robot: Robot) -> None:
     sensor_data, _ = get_sensor_data_with_retry(robot)
-    left_wall, front_wall, right_wall = detect_walls(sensor_data)
+    left_wall, front_wall, right_wall = detect_walls(sensor_data, or_mode=True)
     robot.explorer.update_walls_from_relative(left_wall, front_wall, right_wall) # 壁を更新
 
 
-def process_other_agent_info(robot: Robot, agent_info: dict) -> None:
+def receive_other_agent_info(robot: Robot, agent_info: dict) -> None:
     while True:
         # 他のエージェントからの情報を取得
         msg = robot.comm_client.recv(timeout=0) # 非ブロッキングで受信
@@ -608,7 +634,10 @@ def process_other_agent_info(robot: Robot, agent_info: dict) -> None:
                 print(f"#Warning: 受信したメッセージの形式が不正です: len(parts)={len(parts)}")
         except Exception as e:
             print(f"#Error processing received message: {e}")
-    
+
+
+def set_virtual_walls_around_other_agents(robot: Robot, agent_info: dict, minimum_distance_offset: int=0) -> None:
+    min_distance = MINIMUM_DISTANCE_FROM_OTHER_AGENT[machine_index] + minimum_distance_offset
     robot.explorer.clear_virtual_walls() # 毎ステップ、他エージェントの位置に仮想壁を設定する前に一度クリア
     for agent in agent_info:
         print(f"#エージェント {agent} の位置: ({agent_info[agent][0]}, {agent_info[agent][1]})")
@@ -617,11 +646,16 @@ def process_other_agent_info(robot: Robot, agent_info: dict) -> None:
         dist_map = robot.explorer.get_distance_map(agent_x, agent_y, use_virtual_walls=False)
         for y in range(robot.explorer.size):
             for x in range(robot.explorer.size):
-                if dist_map[y][x] <= MINIMUM_DISTANCE_FROM_OTHER_AGENT[machine_index]:
+                if dist_map[y][x] <= min_distance:
                     robot.explorer.set_virtual_wall(x, y, Direction.NORTH)
                     robot.explorer.set_virtual_wall(x, y, Direction.SOUTH)
                     robot.explorer.set_virtual_wall(x, y, Direction.EAST)
                     robot.explorer.set_virtual_wall(x, y, Direction.WEST)
+
+
+def process_other_agent_info(robot: Robot, agent_info: dict, minimum_distance_offset: int=0) -> None:
+    receive_other_agent_info(robot, agent_info)
+    set_virtual_walls_around_other_agents(robot, agent_info, minimum_distance_offset=minimum_distance_offset)
 
 
 def show_maze_map(robot: Robot) -> None:
@@ -630,6 +664,11 @@ def show_maze_map(robot: Robot) -> None:
     print("\n=== 現在の迷路マップ ===")
     maze_map = robot.explorer.render_text(show_goal=robot.explorer.goals[0] if robot.explorer.goals else None, show_distance=True)
     print(f"\n{maze_map}")
+
+
+def send_my_agent_info(robot: Robot) -> None:
+    print(f"#現在の位置を送信: ({robot.explorer.pose.x}, {robot.explorer.pose.y}) heading={robot.explorer.pose.heading.name}")
+    robot.comm_client.send(f"ID {machine_id} POS {robot.explorer.pose.x} {robot.explorer.pose.y} {robot.explorer.pose.heading.name} MAZE {robot.explorer.export_ultracompact()}")
 
 
 def run_maze_exploration(robot: Robot, max_steps: int, state: State, agent_info: dict) -> str:
@@ -693,8 +732,7 @@ def run_maze_exploration(robot: Robot, max_steps: int, state: State, agent_info:
         print(f"\n\n\n--------- Step {step_count} ---------\n\n")
         
         # ここで現在の位置や迷路情報を送信
-        print(f"#現在の位置を送信: ({robot.explorer.pose.x}, {robot.explorer.pose.y}) heading={robot.explorer.pose.heading.name}")
-        robot.comm_client.send(f"ID {machine_id} POS {robot.explorer.pose.x} {robot.explorer.pose.y} {robot.explorer.pose.heading.name} MAZE {robot.explorer.export_ultracompact()}")
+        send_my_agent_info(robot)
         
         process_other_agent_info(robot, agent_info) # 他のエージェントからの情報を処理して迷路マップに反映
 
@@ -721,7 +759,7 @@ def run_maze_exploration(robot: Robot, max_steps: int, state: State, agent_info:
             consecutive_sensor_failures = 0
             
             # 壁検出
-            left_wall, front_wall, right_wall = detect_walls(sensor_data)
+            left_wall, front_wall, right_wall = detect_walls(sensor_data, or_mode=True)
         else:
             # 他のエージェントをまっている状態なので、センサーデータは取得せず、壁情報も更新しない
             print("#他のエージェントを待っている状態なので、センサーデータは取得せず、壁情報も更新しません")
@@ -756,7 +794,7 @@ def run_maze_exploration(robot: Robot, max_steps: int, state: State, agent_info:
 
                 else: # next_heading is not None
                     print("#仮想壁を無視した結果、進行方向が見つかりました。")
-                    robot.comm_client.send(f"ID {machine_id} POS {robot.explorer.pose.x} {robot.explorer.pose.y} {robot.explorer.pose.heading.name} MAZE {robot.explorer.export_ultracompact()}")
+                    send_my_agent_info(robot)
                     if not wait_for_other_agent:
                         print("#その場で停止して他のエージェントを待ちます。")
                         robot.mob_thread.send_command('STOP', FWD_SPEED, FWD_ACC, 90)
@@ -801,16 +839,19 @@ def run_maze_exploration(robot: Robot, max_steps: int, state: State, agent_info:
             if not wait_for_done(robot):
                 print(f"#Warning: コマンド {i+1}/{len(command_queue)} の応答待機に失敗")
                 return "EXIT"
+            print(f"#👺 Last command: {last_command[0]}")
             if last_command[0] == 'TURN':
+                print("#🔷旋回コマンドの後は、カメラの更新を待ちます")
                 # 旋回コマンドの後は、カメラの更新を待つ。
-                robot.ball_thread.wait_detection_update()
+                time.sleep(1)
             if ball_result != "CATCHED": # すでにボールキャッチ成功している場合は以降のコマンド実行後もボール検出をスキップ
+                print("#ボール確認")
                 ball_result = catch_ball_when_detect(robot,last_command, state, front_wall_check=last_command[0]=='STOP')
         
         if state == State.SEARCH and ball_result == "CATCHED":
             print("\n=== 🟡ボールキャッチ成功 ===")
             sensor_data, _ = get_sensor_data_with_retry(robot)
-            left_wall, front_wall, right_wall = detect_walls(sensor_data)
+            left_wall, front_wall, right_wall = detect_walls(sensor_data, or_mode=True)
             robot.explorer.update_walls_from_relative(left_wall, front_wall, right_wall) # 壁を更新
             robot.mob_thread.send_command('STOP', FWD_SPEED, FWD_ACC, 90)
             robot.mob_thread.wait_response()
@@ -965,6 +1006,8 @@ def main() -> int:
         
         # Robotインスタンスを作成
         robot = Robot(mob_thread=mob_thread, ball_thread=ball_thread, arm=arm, explorer=explorer, comm_client=comm_client)        
+        
+        send_my_agent_info(robot)
 
         # 一番最初の前進はアルゴリズムによらずに実行されるため、
         # その分をアルゴリズムに通知しておく
@@ -986,7 +1029,7 @@ def main() -> int:
             time.sleep(0.2)
             sensor_data, _ = get_sensor_data_with_retry(robot)
             print(f"#LF:{sensor_data['lf']:.2f}, RF:{sensor_data['rf']:.2f}")
-            _, is_front_wall, _ = detect_walls(sensor_data)
+            _, is_front_wall, _ = detect_walls(sensor_data, or_mode=True)
             if is_front_wall:
                 cnt += 1
             else:
@@ -1004,7 +1047,7 @@ def main() -> int:
             time.sleep(0.2)
             sensor_data, _ = get_sensor_data_with_retry(robot)
             print(f"#LF:{sensor_data['lf']:.2f}, RF:{sensor_data['rf']:.2f}")
-            _, is_front_wall, _ = detect_walls(sensor_data)
+            _, is_front_wall, _ = detect_walls(sensor_data, or_mode=True)
             if not is_front_wall:
                 cnt += 1
             else:
