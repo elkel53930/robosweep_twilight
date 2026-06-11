@@ -6,3 +6,6 @@
 
 CADデータは[こちら](https://a360.co/4pVUIVw))
 
+# ブロック図
+
+<img width="1439" height="1005" alt="image" src="https://github.com/user-attachments/assets/9c0b0130-34bd-4353-bb85-cbcf2988c25e" />
